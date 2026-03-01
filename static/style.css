@@ -523,7 +523,7 @@ a.heading-link:focus::after {
     opacity: 0.6;
 }
 .full {
-    min-height: 100vh;
+    min-height: 100svh;
 }
 .grid2 {
     display: grid;
