@@ -31,6 +31,8 @@ Indexing completed: 2339298 docs in 4182.40 sec (559.32 docs/sec)
 
 以下はProcess Explorerでのメモリ使用量のスクリーンショットですー
 
+20GBくらいメモリ使ってますね。 まぁこれくらいは仕方ないかなーと思います。
+
 ![prexpの統計](./images/prexp.png)
 
 ```
