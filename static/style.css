@@ -158,6 +158,10 @@ p {
     padding: 0;
     margin-left: 2em;
 }
+b, strong {
+    font-weight: bold;
+    color: var(--color-text-1);
+}
 small, sup, sub {
     font-size: 0.8em;
     color: var(--color-text-0);
