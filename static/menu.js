@@ -94,7 +94,7 @@ const THEMES = {
         "--color-bg-1": "#1a1a1a",
         "--color-bg-2": "#282828",
         "--color-text-0": "#999999",
-        "--color-text-1": "#cccccc",
+        "--color-text-1": "#ffffff",
         "--color-accent-0": "#6f7a95",
         "--color-accent-1": "#a9b7e6",
     },
