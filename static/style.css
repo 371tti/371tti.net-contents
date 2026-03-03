@@ -386,6 +386,7 @@ pre {
 }
 img, image {
     border-radius: 1mm;
+    max-width: 100%;
 }
 p:has(img),
 p:has(image) {
