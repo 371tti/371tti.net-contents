@@ -193,8 +193,10 @@ math, math * {
 .math-display {
     display: block;
     text-align: center;
-    font-size: 1.8em;
+    font-size: 1.6em;
     margin: 5mm 0;
+    overflow-x: auto;
+    overflow-y: hidden;
 }
 .spoiler {
     background-color: var(--color-bg-2);
