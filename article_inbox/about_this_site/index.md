@@ -18,7 +18,7 @@ is_complete: true
 以下はこのサイトの主要な技術スタックと関連プロジェクトです。  
 - web backend server: [371tti@kurosabi](https://github.com/371tti/kurosabi)
 - index and search: [371tti@tf-idf-vectorizer](https://github.com/371tti/tf-idf-vectorizer)
-- md to html render: [cmark](https://github.com/pulldown-cmark/pulldown-cmark/)
+- md to html render: [markdown-rs](https://docs.rs/markdown/latest/markdown/)
 
 Rustで開発した理由は以下の通り
 - 低リソース環境で安定した運用が条件だったため。
