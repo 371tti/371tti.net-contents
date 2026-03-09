@@ -44,9 +44,3 @@ Public Domain Document(PDD)の資料を集めた図書館サイト。
 ## [Check Host](https://check-host.net/)
 言わずと知れたHTTP,TCP,UDPの利用可能性を調べることのできるスキャナー  
 世界中のことなるserverからの遅延など確認できる。
-
-## [コンピューターがどうやってプログラムを実行するか気になりませんか？](https://cpu.land/)
-
-## [JAXA 技術文書](https://sma.jaxa.jp/techdoc.html)
-案外読めるかもしれない程度で書かれてるやつもあったりするかもしれないよ？。  
-ちゃんとした 文書 というものを見れる
