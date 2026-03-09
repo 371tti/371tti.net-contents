@@ -9,4 +9,4 @@ is_complete: false
 そのうち移動する予定、
 
 ## 直近で移動した記事一覧
-- なし
+- about_this_site/ -> root

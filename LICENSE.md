@@ -5,6 +5,13 @@ authors:
 is_complete: true
 ---
 
+## Articles
+
+Articles with a specific license notice are governed by that license.
+
+If an article does not include a specific license notice, it remains protected by copyright law and the copyright belongs to the author of that article.
+
+
 ## This Website
 
 MIT License
