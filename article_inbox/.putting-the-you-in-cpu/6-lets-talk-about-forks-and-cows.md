@@ -1,5 +1,5 @@
 ---
-title: CPUの中に「あなた」を置く
+title: Putting the You in CPU
 description: 
 authors: 
     - kognise
