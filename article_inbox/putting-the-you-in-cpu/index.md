@@ -29,7 +29,7 @@ is_complete: false
 > それなら[第3章](putting-the-you-in-cpu/3-how-to-run-a-program.md)から読んでください。何かひとつは必ず新しく学べるはずです。まあ、本人がLinus Torvalds(Linuxなどの作者)なら話は別ですが。
 
 ---
-<a href="1-the-basics.md" class="button x-center">
+<a href="putting-the-you-in-cpu/1-the-basics.md" class="button x-center">
 1-the-basics
 </a>
 
