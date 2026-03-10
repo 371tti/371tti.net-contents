@@ -26,4 +26,4 @@ is_complete: false
 
 > 急いでいますか？ あるいは、もうこのへんは知っている気がしますか？
 >
-> それなら[第3章](3-how-to-run-a-program.md)から読んでください。何かひとつは必ず新しく学べるはずです。まあ、本人がLinus Torvalds(Linuxなどの作者)なら話は別ですが。
+> それなら[第3章](putting-the-you-in-cpu/3-how-to-run-a-program.md)から読んでください。何かひとつは必ず新しく学べるはずです。まあ、本人がLinus Torvalds(Linuxなどの作者)なら話は別ですが。
