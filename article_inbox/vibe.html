@@ -1,0 +1,110 @@
+---
+title: Vibration API Test
+authors:
+- 371tti
+is_complete: true
+---
+
+<body>
+    <div id="buttons"></div>
+    <button id="stop" class="button">停止</button>
+    <pre id="log"></pre>
+</body>
+
+<script>
+    const log = (msg) => {
+        document.getElementById("log").textContent += msg + "\n";
+    };
+
+    function canVibrate() {
+        return typeof navigator.vibrate === "function";
+    }
+
+    const PATTERNS = {
+        
+        "loading / basic": [18, 120, 18, 120, 18, 120, 18, 120, 18, 120, 18, 120, 18],
+        "loading / pulse": [14, 70, 28, 140, 14, 70, 28, 140, 14, 70, 28, 140, 14],
+        "loading / wave": [12, 140, 12, 110, 12, 80, 12, 60, 12, 80, 12, 110, 12, 140, 12],
+        "loading / scan": [10, 40, 10, 40, 10, 160, 10, 40, 10, 40, 10, 160, 10, 40, 10, 40, 10],
+        "loading / spinner": [8, 24, 8, 30, 8, 38, 8, 48, 8, 62, 8, 48, 8, 38, 8, 30, 8, 24, 8],
+        "loading / progress": [12, 120, 18, 110, 24, 100, 30, 90, 24, 100, 18, 110, 12],
+        "loading / unstable": [10, 90, 18, 140, 12, 70, 24, 160, 10, 110, 20, 130, 12],
+        "loading / dots": [8, 60, 8, 60, 8, 180, 8, 60, 8, 60, 8, 180, 8, 60, 8, 60, 8],
+
+        "feedback / tap soft": [12],
+        "feedback / tap": [20],
+        "feedback / tap hard": [32],
+        "feedback / double tap": [18, 50, 18],
+        "feedback / triple tap": [14, 38, 14, 38, 14],
+        "feedback / select": [12, 30, 20],
+        "feedback / success": [16, 40, 42],
+        "feedback / success strong": [20, 36, 58],
+        "feedback / cancel": [50],
+        "feedback / back": [22, 70, 12],
+        "feedback / warning": [36, 50, 36, 50, 72],
+        "feedback / error": [70, 60, 70],
+        "feedback / error strong": [90, 70, 90, 50, 120],
+        "feedback / toggle on": [14, 20, 32],
+        "feedback / toggle off": [32, 20, 14],
+        "feedback / snap": [8, 16, 8],
+        "feedback / click": [10, 24, 10],
+        "feedback / hold start": [26, 30, 12],
+        "feedback / release": [12, 24, 20]
+    };
+
+    function play(name, pattern) {
+        if (!canVibrate()) {
+            log("この端末/ブラウザは Vibration API 非対応");
+            return;
+        }
+        const ok = navigator.vibrate(pattern);
+        log(`${name}: ${JSON.stringify(pattern)} => ${ok}`);
+    }
+
+    function renderButtons() {
+        const container = document.getElementById("buttons");
+        container.innerHTML = "";
+
+        const groups = {};
+
+        for (const [name, pattern] of Object.entries(PATTERNS)) {
+            const [group, label] = name.split(" / ");
+            if (!groups[group]) groups[group] = [];
+            groups[group].push({ fullName: name, label, pattern });
+        }
+
+        for (const [groupName, items] of Object.entries(groups)) {
+            const section = document.createElement("section");
+            section.className = "pattern-group";
+
+            const title = document.createElement("h2");
+            title.textContent = groupName;
+            section.appendChild(title);
+
+            const row = document.createElement("div");
+            row.className = "button-row";
+
+            for (const item of items) {
+                const button = document.createElement("button");
+                button.textContent = item.label;
+                button.className = "button";
+                button.addEventListener("click", () => play(item.fullName, item.pattern));
+                row.appendChild(button);
+            }
+
+            section.appendChild(row);
+            container.appendChild(section);
+        }
+    }
+
+    document.getElementById("stop").addEventListener("click", () => {
+        if (!canVibrate()) {
+            log("この端末/ブラウザは Vibration API 非対応");
+            return;
+        }
+        const ok = navigator.vibrate(0);
+        log("stop: " + ok);
+    });
+
+    renderButtons();
+</script>
