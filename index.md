@@ -2,7 +2,7 @@
 title: Index Top
 authors:
   - 371tti
-is_complete: false
+is_complete: true
 ---
 このサイトにあるコンテンツ一覧。 ぽいです。  
 上にあるコンテンツほどおもろい？かも？
