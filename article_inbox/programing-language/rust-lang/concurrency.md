@@ -2,6 +2,9 @@
 title: 並行性（Concurrency）
 authors:
     - chatGPT
+tags:
+- programming-language
+- rust
 is_complete: true
 ---
 

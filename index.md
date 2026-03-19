@@ -2,10 +2,15 @@
 title: Index Top
 authors:
   - 371tti
+tags:
+- index
 is_complete: true
 ---
 このサイトにあるコンテンツ一覧。 ぽいです。  
 上にあるコンテンツほどおもろい？かも？
+
+## システム
+- [Search](search.html): サイト内検索
 
 ## コンテンツ
 - [Tools](tools): Tools セクションのトップページ
@@ -22,4 +27,5 @@ is_complete: true
 
 ## Repository
 - [README.md](README.md): コンテンツリポジトリのREADME
+
 

@@ -4,6 +4,10 @@ description: 疎ベクトルの実装
 authors:
 - 371tti
 - ChatGPT
+tags:
+- article
+- search
+- information-retrieval
 is_complete: true
 ---
 
@@ -148,3 +152,4 @@ fn main() {
    - 疎ベクトルはメモリ上で連続して格納されないため、キャッシュ効率が悪化する可能性があります。
 
 疎ベクトルは、データの性質や用途に応じて適切に選択・実装する必要があります。
+

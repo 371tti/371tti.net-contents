@@ -2,6 +2,10 @@
 title: 未分類記事ぽいぽい
 authors: 
     - 371tti
+tags:
+- article
+- inbox
+- index
 is_complete: false
 ---
 # 未分類記事ぽいぽい

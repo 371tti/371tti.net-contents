@@ -2,6 +2,9 @@
 title: 所有権（Ownership）
 authors:
     - chatGPT
+tags:
+- programming-language
+- rust
 is_complete: true
 ---
 

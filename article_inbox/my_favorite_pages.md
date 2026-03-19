@@ -2,6 +2,9 @@
 title: 私の好きなWebページ集
 authors: 
     - 371tti
+tags:
+- article
+- inbox
 is_complete: false
 ---
 # 私の好きなWebページ集

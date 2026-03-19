@@ -2,6 +2,9 @@
 title: プログラミング言語
 authors: 
     - 371tti
+tags:
+- programming-language
+- index
 is_complete: false
 ---
 コンピュータはマシン語しか解釈できない。そのため我々がコンピュータに命令を与えるためには、コンピュータに何らかの方法で目的の処理をマシン語で伝えなければならない。

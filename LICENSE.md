@@ -2,6 +2,8 @@
 title: License
 authors: 
   - 371tti
+tags:
+- legal
 is_complete: true
 ---
 

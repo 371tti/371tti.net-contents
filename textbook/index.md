@@ -2,6 +2,9 @@
 title: 教科書置き場
 authors: 
   - 371tti
+tags:
+- textbook
+- index
 is_complete: false
 ---
 私が知れてる範囲での学問とやらの収録

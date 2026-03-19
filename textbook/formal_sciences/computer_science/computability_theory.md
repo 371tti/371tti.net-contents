@@ -2,6 +2,11 @@
 title: 計算可能性理論
 authors: 
     - 371tti
+tags:
+- textbook
+- formal-science
+- computer-science
+- computability
 is_complete: false
 ---
 

@@ -4,7 +4,7 @@ authors:
     - 371tti
 tags:
 - article
-- archive
+- inbox
 - programming-language
 - rust
 is_complete: false

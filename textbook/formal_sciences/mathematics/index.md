@@ -2,6 +2,11 @@
 title: 数学
 authors: 
   - 371tti
+tags:
+- textbook
+- formal-science
+- mathematics
+- index
 is_complete: false
 ---
 

@@ -2,6 +2,9 @@
 title: ライフタイム（Lifetime）
 authors:
     - chatGPT
+tags:
+- programming-language
+- rust
 is_complete: true
 ---
 

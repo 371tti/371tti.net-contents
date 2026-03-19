@@ -2,6 +2,9 @@
 title: 借用（Borrowing）
 authors:
     - chatGPT
+tags:
+- programming-language
+- rust
 is_complete: true
 ---
 

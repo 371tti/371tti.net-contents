@@ -2,6 +2,11 @@
 title: IPv4について
 authors: 
   - 371tti
+tags:
+- article
+- inbox
+- network
+- ipv4
 is_complete: false
 ---
 # IPv4について
@@ -221,3 +226,4 @@ is_complete: false
   - **コード (Code)**: タイプフィールドと組み合わせて、ICMPメッセージの詳細を示す補助コードです。エラーメッセージの詳細や理由を示します。
   - **チェックサム (Checksum)**: ICMPメッセージ全体のエラーチェックを行うためのフィールドです。
   - **メッセージボディ (Message Body)**: タイプフィールドに応じたデータを含む可変長フィールドです。エコーリクエスト/応答の場合、送信元のデータが含まれます。
+

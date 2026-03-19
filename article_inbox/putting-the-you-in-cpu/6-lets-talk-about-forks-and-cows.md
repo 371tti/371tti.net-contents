@@ -4,6 +4,10 @@ description:
 authors: 
     - kognise
     - hackclub
+tags:
+- article
+- computer-architecture
+- cpu
 is_complete: true
 ---
 > [!IMPORTANT]
@@ -282,3 +286,4 @@ static inline bool is_cow_mapping(vm_flags_t flags)
 </div>
 
 ---
+

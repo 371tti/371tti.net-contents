@@ -2,6 +2,8 @@
 title: Copyright and Content Ownership
 authors: 
   - 371tti
+tags:
+- legal
 is_complete: true
 ---
 
@@ -54,3 +56,4 @@ owners and are subject to their original licenses.
 
 This document may be updated to reflect changes in the website system or
 content policies. The latest version of this document shall apply.
+

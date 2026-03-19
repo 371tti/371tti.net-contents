@@ -2,6 +2,9 @@
 title: エラー処理（Error Handling）
 authors:
     - chatGPT
+tags:
+- programming-language
+- rust
 is_complete: true
 ---
 

@@ -3,6 +3,11 @@ title: 文書検索エンジンをつくった
 description: 文書検索エンジンをつくったのでその振り返り
 authors:
 - 371tti
+tags:
+- article
+- search
+- information-retrieval
+- index
 is_complete: false
 ---
 

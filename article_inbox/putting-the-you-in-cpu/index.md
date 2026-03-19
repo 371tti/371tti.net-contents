@@ -4,6 +4,11 @@ description:
 authors: 
     - kognise
     - hackclub
+tags:
+- article
+- computer-architecture
+- cpu
+- index
 is_complete: false
 ---
 

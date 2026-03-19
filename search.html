@@ -1,0 +1,620 @@
+---
+title: Search
+description: SearchAPI を使って全文検索とタグ絞り込みを行うページ
+authors:
+- 371tti
+tags:
+- search
+- api
+is_complete: true
+---
+<style>
+    .grid2a {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10mm;
+        height: min-content;
+    }
+
+    .w2a {
+        grid-column: span 2;
+    }
+
+    @media (max-width: 1200px) {
+        .w2a {
+            grid-column: span 1;
+        }
+
+        .grid2a {
+            grid-column: span 2;
+        }
+    }
+
+    @media (max-width: 900px) {
+        .grid2a {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<body>
+    <main>
+        <article>
+            <h1 class="title">SearchAPI Playground</h1>
+            <p class="authors">author: 371tti</p><br>
+            <hr>
+            <div class="grid3">
+                <div class="grid2a">
+                    <div class="w2a">
+                        <h2>Query</h2>
+                        <form id="search-form">
+                            <div>
+                                <label for="query">query</label><br>
+                                <input id="query" name="query" type="text" placeholder="例: 文書検索" required class="x-max">
+                            </div>
+                            <div>
+                                <label for="algorithm">algorithm</label><br>
+                                <select id="algorithm" name="algorithm" class="x-max">
+                                    <option value="Contains">Contains</option>
+                                    <option value="Dot">Dot</option>
+                                    <option value="CosineSimilarity" selected>CosineSimilarity</option>
+                                    <option value="BM25">BM25</option>
+                                </select>
+                            </div>
+                            <div id="bm25-row" class="indent" hidden>
+                                BM25 parameters
+                                <div>
+                                    k1: <input id="bm25-k1" type="number" step="0.1" min="0" value="1.2" title="k1"><br>
+                                    b: <input id="bm25-b" type="number" step="0.1" min="0" max="1" value="0.7"
+                                        title="b">
+                                </div>
+                            </div>
+                            <div>
+                                <label for="order">order</label><br>
+                                <select id="order" name="order" class="x-max">
+                                    <option value="ScoreDescWithTitle" selected>ScoreDescWithTitle</option>
+                                    <option value="ScoreDesc">ScoreDesc</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label>
+                                    <input id="boolean-mode" type="checkbox">
+                                    boolean (can use &, |, !, [])
+                                </label>
+                            </div>
+                            <div>
+                                <input class="button x-max" type="submit" value="Search">
+                                <input id="clear-selection" class="button x-max" type="button"
+                                    value="Clear Tag Selection">
+                            </div>
+                        </form>
+                    </div>
+                    <div class="w2a">
+                        <h2>Tag List</h2>
+                        <details>
+                            <summary>Tags</summary>
+                            <div class="indent">
+                                <label for="tag-range">range_text (例: 0-, 0-30, -20, 50)</label><br>
+                                <input id="tag-range" type="text" value="0-">
+                            </div>
+                        </details>
+                        <div>
+                            <input id="load-tags" class="button x-max" type="button" value="Load Tags">
+                        </div>
+                        <div>
+                            <label for="tag-filter">tag filter</label><br>
+                            <input id="tag-filter" type="text" class="x-max" placeholder="例: rust">
+                        </div>
+                        <div id="tag-list" aria-live="polite"></div>
+                    </div>
+                </div>
+
+
+                <div class="w2">
+                    <div class="result-meta">
+                        <h2 style="margin:0;">Results</h2>
+                        <span id="result-count" class="tiny">0 hits</span>
+                    </div>
+                    <div id="status" class="status-box tiny">待機中</div>
+                    <div class="status-box tiny">
+                        <details>
+                            <summary>Last API JSON</summary>
+                            <div class="indent">
+                                <div><small id="last-api-meta">-</small></div>
+                                <div>request</div>
+                                <pre id="last-request-json" style="white-space: pre-wrap; overflow-x: auto;">-</pre>
+                                <div>response</div>
+                                <pre id="last-response-json" style="white-space: pre-wrap; overflow-x: auto;">-</pre>
+                            </div>
+                        </details>
+                    </div>
+                    <div id="result-list" style="display: grid; gap: 5mm;"></div>
+                </div>
+            </div>
+        </article>
+    </main>
+</body>
+
+
+<script>
+    (() => {
+        const searchForm = document.getElementById('search-form');
+        const queryInput = document.getElementById('query');
+        const algorithmSelect = document.getElementById('algorithm');
+        const bm25Row = document.getElementById('bm25-row');
+        const bm25K1 = document.getElementById('bm25-k1');
+        const bm25B = document.getElementById('bm25-b');
+        const orderSelect = document.getElementById('order');
+        const booleanModeCheckbox = document.getElementById('boolean-mode');
+
+        const tagRangeInput = document.getElementById('tag-range');
+        const loadTagsButton = document.getElementById('load-tags');
+        const tagFilterInput = document.getElementById('tag-filter');
+        const clearSelectionButton = document.getElementById('clear-selection');
+        const tagList = document.getElementById('tag-list');
+
+        const statusBox = document.getElementById('status');
+        const resultCount = document.getElementById('result-count');
+        const resultList = document.getElementById('result-list');
+        const lastApiMeta = document.getElementById('last-api-meta');
+        const lastRequestJson = document.getElementById('last-request-json');
+        const lastResponseJson = document.getElementById('last-response-json');
+        const tagNameById = new Map();
+        let currentTagResults = [];
+        let pendingSelectedTagIds = new Set();
+
+        function setStatus(text, isError) {
+            statusBox.textContent = text;
+            statusBox.style.borderColor = isError
+                ? 'color-mix(in oklab, #ef4444 58%, var(--color-border-0))'
+                : 'var(--color-border-0)';
+        }
+
+        function normalizePath(path) {
+            if (!path) {
+                return '/';
+            }
+            return path.startsWith('/') ? path : `/${path}`;
+        }
+
+        function parseBooleanParam(raw) {
+            if (!raw) {
+                return false;
+            }
+            const normalized = String(raw).trim().toLocaleLowerCase();
+            return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
+        }
+
+        function parseTagIdsParam(raw) {
+            if (!raw) {
+                return [];
+            }
+            return String(raw)
+                .split(',')
+                .map((s) => Number(s.trim()))
+                .filter((id) => Number.isInteger(id) && id >= 0);
+        }
+
+        function restoreStateFromUrl() {
+            const params = new URLSearchParams(window.location.search || '');
+
+            const query = params.get('q');
+            if (query !== null) {
+                queryInput.value = query;
+            }
+
+            const algorithm = params.get('algorithm');
+            if (algorithm && Array.from(algorithmSelect.options).some((opt) => opt.value === algorithm)) {
+                algorithmSelect.value = algorithm;
+            }
+
+            const order = params.get('order');
+            if (order && Array.from(orderSelect.options).some((opt) => opt.value === order)) {
+                orderSelect.value = order;
+            }
+
+            booleanModeCheckbox.checked = parseBooleanParam(params.get('boolean_mode'));
+
+            const k1 = Number(params.get('bm25_k1'));
+            if (Number.isFinite(k1)) {
+                bm25K1.value = String(k1);
+            }
+
+            const b = Number(params.get('bm25_b'));
+            if (Number.isFinite(b)) {
+                bm25B.value = String(b);
+            }
+
+            const rangeText = params.get('tag_range');
+            if (rangeText !== null) {
+                tagRangeInput.value = rangeText;
+            }
+
+            const tagFilter = params.get('tag_filter');
+            if (tagFilter !== null) {
+                tagFilterInput.value = tagFilter;
+            }
+
+            pendingSelectedTagIds = new Set(parseTagIdsParam(params.get('tags')));
+
+            return {
+                autoSearch: queryInput.value.trim().length > 0,
+            };
+        }
+
+        function updateUrlFromState() {
+            const params = new URLSearchParams();
+            const query = queryInput.value.trim();
+            const selectedTagIds = getSelectedTagIds();
+
+            if (query) {
+                params.set('q', query);
+            }
+            params.set('algorithm', algorithmSelect.value);
+            params.set('order', orderSelect.value);
+
+            if (booleanModeCheckbox.checked) {
+                params.set('boolean_mode', '1');
+            }
+
+            if (algorithmSelect.value === 'BM25') {
+                params.set('bm25_k1', String(Number(bm25K1.value)));
+                params.set('bm25_b', String(Number(bm25B.value)));
+            }
+
+            const rangeText = (tagRangeInput.value || '').trim();
+            if (rangeText) {
+                params.set('tag_range', rangeText);
+            }
+
+            const tagFilter = (tagFilterInput.value || '').trim();
+            if (tagFilter) {
+                params.set('tag_filter', tagFilter);
+            }
+
+            if (selectedTagIds.length > 0) {
+                params.set('tags', selectedTagIds.join(','));
+            }
+
+            const queryText = params.toString();
+            const nextUrl = `${window.location.pathname}${queryText ? `?${queryText}` : ''}`;
+            window.history.replaceState(null, '', nextUrl);
+        }
+
+        function tagIdToLabel(id) {
+            const tagName = tagNameById.get(id);
+            return tagName ? `${tagName}(#${id})` : `#${id}`;
+        }
+
+        function stringifyPrettyJson(data) {
+            if (typeof data === 'undefined') {
+                return '-';
+            }
+            try {
+                return JSON.stringify(data, null, 2);
+            } catch (_e) {
+                return String(data);
+            }
+        }
+
+        function renderLastApiExchange(meta, requestBody, responseBody) {
+            lastApiMeta.textContent = meta;
+            lastRequestJson.textContent = stringifyPrettyJson(requestBody);
+            lastResponseJson.textContent = stringifyPrettyJson(responseBody);
+        }
+
+        function renderResults(payload, query) {
+            const list = payload && Array.isArray(payload.list) ? payload.list : [];
+            const normalizedQuery = String(query || '').trim().toLocaleLowerCase();
+            resultCount.textContent = `${list.length} hits`;
+            resultList.innerHTML = '';
+
+            if (list.length === 0) {
+                const empty = document.createElement('p');
+                empty.className = 'tiny';
+                empty.textContent = '結果がありません。query や tags を調整してください。';
+                resultList.appendChild(empty);
+                return;
+            }
+
+            for (const item of list) {
+                const key = item && item.key ? item.key : {};
+                const path = normalizePath(key.path || '');
+                const title = key.title || '(no title)';
+                const score = typeof item.score === 'number' ? item.score : Number(item.score) || 0;
+                const tagIds = Array.isArray(key.tag_ids) ? key.tag_ids : [];
+                const isTitleHit =
+                    normalizedQuery.length > 0 &&
+                    String(title).toLocaleLowerCase().includes(normalizedQuery);
+
+                const article = document.createElement('article');
+                article.className = isTitleHit ? 'card' : 'card-o';
+
+                const h3 = document.createElement('h3');
+                h3.style.padding = '0';
+                const a = document.createElement('a');
+                a.href = path;
+                a.textContent = title;
+                h3.appendChild(a);
+
+                const meta = document.createElement('div');
+
+                const scoreSpan = document.createElement('p');
+                scoreSpan.textContent = `score: ${score.toFixed(6)}`;
+
+                const pathSpan = document.createElement('p');
+                const pathSmall = document.createElement('small');
+                pathSmall.textContent = `path: ${path}`;
+                pathSpan.appendChild(pathSmall);
+
+                const tagsSpan = document.createElement('p');
+                const tagSmall = document.createElement('small');
+                tagSmall.textContent = `tags: [${tagIds.map((id) => tagIdToLabel(id)).join(', ')}]`;
+                tagsSpan.appendChild(tagSmall);
+                pathSpan.style.lineHeight = '1.0';
+                tagsSpan.style.lineHeight = '1.0';
+
+                meta.appendChild(scoreSpan);
+                meta.appendChild(pathSpan);
+                meta.appendChild(tagsSpan);
+
+                article.appendChild(h3);
+                article.appendChild(meta);
+                resultList.appendChild(article);
+            }
+        }
+
+        function getSelectedTagIds() {
+            return Array.from(tagList.querySelectorAll('input[type="checkbox"]:checked'))
+                .map((input) => Number(input.value))
+                .filter((num) => Number.isInteger(num) && num >= 0);
+        }
+
+        function buildAlgorithmValue() {
+            const value = algorithmSelect.value;
+            if (value !== 'BM25') {
+                return value;
+            }
+
+            const k1 = Number(bm25K1.value);
+            const b = Number(bm25B.value);
+
+            if (!Number.isFinite(k1) || !Number.isFinite(b)) {
+                throw new Error('BM25 パラメータは数値で指定してください');
+            }
+
+            return { BM25: [k1, b] };
+        }
+
+        function setAlgorithmUI() {
+            bm25Row.hidden = algorithmSelect.value !== 'BM25';
+        }
+
+        function renderTags(tagResults) {
+            tagList.innerHTML = '';
+
+            if (!Array.isArray(tagResults) || tagResults.length === 0) {
+                const p = document.createElement('p');
+                p.className = 'tiny';
+                p.textContent = 'タグがありません。range を変えて再取得してください。';
+                tagList.appendChild(p);
+                return;
+            }
+
+            const validTagResults = tagResults
+                .filter((result) => result && typeof result === 'object')
+                .map((result, index) => {
+                    const name = String(result.name ?? '');
+                    const id = Number(result.id);
+                    const count = Number(result.count);
+                    return { name, id, count, index };
+                })
+                .filter((result) => Number.isInteger(result.id) && result.id >= 0);
+
+            const normalizedFilter = String(tagFilterInput.value || '').trim().toLocaleLowerCase();
+            const selectedIdSet = new Set(pendingSelectedTagIds);
+
+            const filteredTagResults = validTagResults
+                .filter((result) => {
+                    if (!normalizedFilter) {
+                        return true;
+                    }
+                    return result.name.toLocaleLowerCase().includes(normalizedFilter);
+                })
+                .sort((a, b) => {
+                    const aSelected = selectedIdSet.has(a.id) ? 1 : 0;
+                    const bSelected = selectedIdSet.has(b.id) ? 1 : 0;
+                    if (aSelected !== bSelected) {
+                        return bSelected - aSelected;
+                    }
+                    return a.index - b.index;
+                });
+
+            if (filteredTagResults.length === 0) {
+                const p = document.createElement('p');
+                p.className = 'tiny';
+                p.textContent = normalizedFilter
+                    ? 'フィルタ条件に一致するタグがありません。'
+                    : '有効なタグがありませんでした。';
+                tagList.appendChild(p);
+                return;
+            }
+
+            const MAX_VISIBLE_TAGS = 9;
+            const visibleContainer = document.createElement('div');
+            const overflowContainer = document.createElement('div');
+
+            const appendTagChip = (target, result) => {
+                tagNameById.set(result.id, result.name);
+
+                const label = document.createElement('label');
+                label.className = 'tag-chip';
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.value = String(result.id);
+                checkbox.checked = selectedIdSet.has(result.id);
+
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = ` ${result.name}`;
+
+                const idSpan = document.createElement('span');
+                idSpan.className = 'count mono';
+                idSpan.textContent = Number.isFinite(result.count)
+                    ? `#${result.id} (${result.count})`
+                    : `#${result.id}`;
+
+                label.appendChild(checkbox);
+                label.appendChild(nameSpan);
+                label.appendChild(idSpan);
+
+                const wrappedLabel = document.createElement('code');
+                wrappedLabel.appendChild(label);
+                target.appendChild(wrappedLabel);
+                target.appendChild(document.createElement('br'));
+            };
+
+            filteredTagResults.forEach((result, index) => {
+                if (index < MAX_VISIBLE_TAGS) {
+                    appendTagChip(visibleContainer, result);
+                } else {
+                    appendTagChip(overflowContainer, result);
+                }
+            });
+
+            tagList.appendChild(visibleContainer);
+
+            if (filteredTagResults.length > MAX_VISIBLE_TAGS) {
+                const details = document.createElement('details');
+                const summary = document.createElement('summary');
+                summary.textContent = `もっと表示 (${filteredTagResults.length - MAX_VISIBLE_TAGS}件)`;
+                details.appendChild(summary);
+                details.appendChild(overflowContainer);
+                tagList.appendChild(details);
+            }
+        }
+
+        async function fetchTags(rangeText) {
+            const encodedRange = encodeURIComponent(rangeText.trim());
+            const url = encodedRange ? `/api/tag-list/${encodedRange}` : '/api/tag-list';
+            setStatus(`タグ一覧取得中: ${url}`, false);
+            const startedAt = performance.now();
+
+            const res = await fetch(url);
+            if (!res.ok) {
+                throw new Error(`tag-list request failed: ${res.status}`);
+            }
+
+            const tagResults = await res.json();
+            currentTagResults = Array.isArray(tagResults) ? tagResults : [];
+            const elapsedMs = performance.now() - startedAt;
+            renderTags(currentTagResults);
+            setStatus(`タグ一覧を取得しました (${Array.isArray(tagResults) ? tagResults.length : 0}件)`, false);
+            renderLastApiExchange(
+                `GET ${url} (${elapsedMs.toFixed(1)} ms)`,
+                null,
+                tagResults,
+            );
+            updateUrlFromState();
+        }
+
+        async function runSearch() {
+            const query = queryInput.value.trim();
+            if (!query) {
+                setStatus('query を入力してください', true);
+                return;
+            }
+
+            const payload = {
+                query,
+                boolean_mode: booleanModeCheckbox.checked,
+                algorithm: buildAlgorithmValue(),
+                tags: getSelectedTagIds(),
+                order: orderSelect.value,
+            };
+
+            setStatus('検索中...', false);
+            const startedAt = performance.now();
+
+            const res = await fetch('/api/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+
+            if (!res.ok) {
+                throw new Error(`search request failed: ${res.status}`);
+            }
+
+            const data = await res.json();
+            const elapsedMs = performance.now() - startedAt;
+            renderResults(data, query);
+            setStatus(`検索完了: query="${query}" (${elapsedMs.toFixed(1)} ms)`, false);
+            renderLastApiExchange('POST /api/search', payload, data);
+            updateUrlFromState();
+        }
+
+        searchForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            try {
+                await runSearch();
+            } catch (error) {
+                console.error(error);
+                setStatus(`検索エラー: ${error.message || error}`, true);
+            }
+        });
+
+        algorithmSelect.addEventListener('change', setAlgorithmUI);
+
+        loadTagsButton.addEventListener('click', async () => {
+            tagRangeInput.value = '0-';
+            try {
+                await fetchTags('0-');
+            } catch (error) {
+                console.error(error);
+                setStatus(`タグ取得エラー: ${error.message || error}`, true);
+            }
+        });
+
+        tagFilterInput.addEventListener('input', () => {
+            renderTags(currentTagResults);
+            updateUrlFromState();
+        });
+
+        tagList.addEventListener('change', (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLInputElement) || target.type !== 'checkbox') {
+                return;
+            }
+            pendingSelectedTagIds = new Set(getSelectedTagIds());
+            renderTags(currentTagResults);
+            updateUrlFromState();
+        });
+
+        clearSelectionButton.addEventListener('click', () => {
+            for (const input of tagList.querySelectorAll('input[type="checkbox"]')) {
+                input.checked = false;
+            }
+            pendingSelectedTagIds.clear();
+            renderTags(currentTagResults);
+            setStatus('タグ選択をクリアしました', false);
+            updateUrlFromState();
+        });
+
+        const restoredState = restoreStateFromUrl();
+        setAlgorithmUI();
+        fetchTags(tagRangeInput.value || '0-')
+            .then(() => {
+                if (restoredState.autoSearch) {
+                    return runSearch();
+                }
+                return null;
+            })
+            .catch((error) => {
+                console.error(error);
+                setStatus(`初期化エラー: ${error.message || error}`, true);
+            });
+    })();
+</script>

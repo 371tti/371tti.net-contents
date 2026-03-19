@@ -3,6 +3,11 @@ title: About This Site
 description: このサイトについて
 authors:
 - 371tti
+tags:
+- site
+- meta
+- about
+- index
 is_complete: true
 ---
 
@@ -34,3 +39,4 @@ Rustで開発した理由は以下の通り
 - [ ] 強力な検索機能の実装: tf-idfベクトル化を活用した検索機能の実装と最適化。 
 - [ ] Analyzerの強化: ユーザビリティ向上のためのAnalyzerの改善と機能追加。
 - [ ] アカウント機能の実装: ユーザー登録、ログイン、プロフィール管理などのアカウント関連機能の実装。 
+

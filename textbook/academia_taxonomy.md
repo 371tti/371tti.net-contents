@@ -2,6 +2,9 @@
 title: 学術体系
 authors: 
   - 371tti
+tags:
+- textbook
+- academia
 is_complete: false
 ---
 学術(英: Academia)とは、知識の体系的な探求と理解を目的とした人間の活動領域であり、多様な分野に分かれている。

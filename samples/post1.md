@@ -2,6 +2,8 @@
 title: サンプル記事1
 authors: 
   - 371tti
+tags:
+- sample
 is_complete: true
 ---
 # MD記法 標準 + 拡張
@@ -138,4 +140,5 @@ Term 2
 ![画像テスト](https://placehold.jp/300x200.png "画像タイトル")
 ![画像テスト](https://placehold.jp/300x200.png "画像タイトル")
 ![画像テスト](https://placehold.jp/300x200.png "画像タイトル")
+
 

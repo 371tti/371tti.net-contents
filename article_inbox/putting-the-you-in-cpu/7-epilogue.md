@@ -4,6 +4,10 @@ description:
 authors: 
     - kognise
     - hackclub
+tags:
+- article
+- computer-architecture
+- cpu
 is_complete: true
 ---
 > [!IMPORTANT]
@@ -80,3 +84,4 @@ is_complete: true
 </div>
 
 ---
+

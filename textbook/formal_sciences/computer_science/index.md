@@ -2,6 +2,11 @@
 title: コンピュータサイエンス
 authors: 
   - 371tti
+tags:
+- textbook
+- formal-science
+- computer-science
+- index
 is_complete: false
 ---
 
@@ -66,4 +71,5 @@ is_complete: false
 コンピュータサイエンスは、現代社会の基盤を支える技術の多くを生み出してきた。
 歴史的には第2次世界大戦中の暗号解読や、初期の電子計算機の開発に端を発する。
 その後、インターネット、モバイルコンピューティング、クラウドサービス、人工知能など、数多くの革新的な技術がこの分野から生まれた。
+
 

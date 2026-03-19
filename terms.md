@@ -2,6 +2,8 @@
 title: Terms of Service
 authors: 
   - 371tti
+tags:
+- legal
 is_complete: true
 ---
 
@@ -111,3 +113,4 @@ of the revised Terms.
 
 For inquiries regarding these Terms or the Service, please contact the
 site administrator.
+

@@ -2,6 +2,10 @@
 title: Rust Programming Language
 authors: 
     - 371tti
+tags:
+- programming-language
+- rust
+- index
 is_complete: false
 ---
 > *"A language empowering everyone to build reliable and efficient software."*  

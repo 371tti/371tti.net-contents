@@ -2,6 +2,9 @@
 title: Rust Code Examples
 authors:
     - chatGPT
+tags:
+- programming-language
+- rust
 is_complete: true
 ---
 

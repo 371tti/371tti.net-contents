@@ -4,6 +4,10 @@ description:
 authors: 
     - kognise
     - hackclub
+tags:
+- article
+- computer-architecture
+- cpu
 is_complete: true
 ---
 > [!IMPORTANT]
@@ -93,3 +97,4 @@ Linuxを含む現代のカーネルは、[プリエンプティブ・カーネ�
 </div>
 
 ---
+

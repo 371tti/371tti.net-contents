@@ -2,6 +2,9 @@
 title: ジェネリクスとトレイト（Generics & Traits）
 authors:
     - chatGPT
+tags:
+- programming-language
+- rust
 is_complete: true
 ---
 

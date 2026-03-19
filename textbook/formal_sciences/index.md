@@ -2,6 +2,10 @@
 title: 形式科学
 authors: 
   - 371tti
+tags:
+- textbook
+- formal-science
+- index
 is_complete: false
 ---
 
