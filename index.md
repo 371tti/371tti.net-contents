@@ -9,8 +9,6 @@ is_complete: true
 このサイトにあるコンテンツ一覧。 ぽいです。  
 上にあるコンテンツほどおもろい？かも？
 
-## システム
-- [Search](search.html): サイト内検索
 
 ## コンテンツ
 - [Tools](tools): Tools セクションのトップページ
@@ -19,6 +17,11 @@ is_complete: true
 - [Textbook](textbook): 形式科学、自然科学、社会科学、人文科学などの学問分野に関する解説記事
 - [Portfolio](portfolio): 371tti のポートフォリオ
 - [Samples](samples): MDレンダラのテスト用サンプル
+
+## API Playground
+- [Search](search.html): サイト内検索
+- [Term Frequency Analyzer](term_freq_analyzer.html): ドキュメントの単語頻度と重要度
+- [Corpus Term Frequency Viewer](corpus_term_freq_viewer.html): コーパス全体の単語重要度
 
 ## Legal
 - [Terms of Service](terms.md): 利用規約, プライバシーポリシー
