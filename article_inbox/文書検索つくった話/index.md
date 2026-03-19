@@ -353,4 +353,211 @@ where
 - `idf_cache`: IDFベクトルのキャッシュです。これはIDFベクトルをキャッシュするために使用されます。
 - `_marker`: TF-IDFエンジンの型パラメータを保持するためのフィールドです。これは実装上必要なもので、実際には使用されません。くわしくは[PhantomData](https://doc.rust-lang.org/std/marker/struct.PhantomData.html)のドキュメントを参照してください。
 
-明日続きかく
+これは今回つくったライブラリのトップレベルの構造体になります。つまりここにあるデータだけでTF-IDFベクトル化された文書の検索が完結するようになっています。
+`Corpus`は以下のような構造体で、コーパス全体の情報を保持するための構造体になります。
+```rust
+/// Corpus for TF-IDF Vectorizer
+///
+/// Manages global document-frequency statistics required for IDF calculation.
+///
+/// This struct does **not** store document text or identifiers.
+/// It only tracks:
+/// - Total number of documents
+/// - Number of documents containing each term
+///
+/// ### Thread Safety
+/// - Fully thread-safe
+/// - Implemented using `DashMap` and atomics
+///
+/// ### Notes
+/// - Must be shared via `Arc<Corpus>`
+/// - Can be reused across multiple vectorizers
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct Corpus {
+    /// corpus add_num
+    /// for update notify
+    pub add_num: AtomicU64,
+    /// corpus sub_num
+    /// for update notify
+    pub sub_num: AtomicU64,
+    // term counts in corpus
+    pub term_counts: DashMap<Box<str>, u64, RandomState>,
+}
+```
+フィールドの役割は以下の通りです。
+- `add_num`: コーパスに文書が追加された回数を表す
+- `sub_num`: コーパスから文書が削除された回数を表す
+- `term_counts`: コーパス全体の単語の出現回数を保持するマップ
+
+`add_num`と`sub_num`は、コーパスの変更（文書の追加や削除）を検知し、`IDFVector`のキャッシュを無効化するために使用されます。`IDFVector`の`latest_entropy`はコーパスの世代を表し、これを比較することでキャッシュが最新かどうかを判断します。
+
+またこれらの統計は、IDFの計算に必要な情報を提供します。特に、`term_counts`は各単語がコーパス全体でどれくらい出現しているかを追跡するために使用されます。
+
+これらがTFベクトルとIDFベクトルをまとめた抽象構造体である`TFIDFVectorizer`の内部で使用されることで、文書のTF-IDFベクトル化と検索機能が実現されます。
+
+また今回の実装ではTF-IDFエンジンを抽象化していて、`TFIDFEngine`トレイトを定義することで、異なるTF-IDF計算方法を実装できるようになっています。
+
+具体的に、何度か実験して精度がよさそうな実装にしました、以下のような実装になっています。
+```rust
+/// TF-IDF Calculation Engine Trait
+///
+/// Defines the behavior of a TF-IDF calculation engine.
+///
+/// Custom engines can be implemented and plugged into
+/// [`TFIDFVectorizer`].
+///
+/// A default implementation, [`DefaultTFIDFEngine`], is provided.
+///
+/// ### Supported Numeric Types
+/// - `f16`
+/// - `f32`
+/// - `u16`
+/// - `u32`
+pub trait TFIDFEngine<N>: Send + Sync
+where
+    N: Num + Copy
+{
+    /// Method to generate the IDF vector
+    /// # Arguments
+    /// * `corpus` - The corpus
+    /// * `term_dim_sample` - term dimension sample
+    /// # Returns
+    /// * `Vec<N>` - The IDF vector
+    /// * `denormalize_num` - Value for denormalization
+    fn idf_vec(corpus: &Corpus, term_dim_sample: &Vec<Box<str>>) -> Vec<f32> {
+        let mut idf_vec = Vec::with_capacity(term_dim_sample.len());
+        let doc_num = corpus.get_doc_num() as f64;
+        for term in term_dim_sample.iter() {
+            let doc_freq = corpus.get_term_count(term);
+            idf_vec.push((doc_num / (doc_freq as f64 + 1.0)) as f32);
+        }
+        idf_vec
+    }
+    /// Method to generate the TF vector
+    /// # Arguments
+    /// * `freq` - term frequency
+    /// * `term_dim_sample` - term dimension sample
+    /// # Returns
+    /// * `(ZeroSpVec<N>, f64)` - TF vector and value for denormalization
+    fn tf_vec(freq: &TermFrequency, term_dim_sample: &IndexSet<Box<str>>) -> TFVector<N>;
+
+    fn tf_denorm(val: N) -> u32;
+}
+
+/// デフォルトのTF-IDFエンジン
+#[derive(Debug, Clone)]
+pub struct DefaultTFIDFEngine;
+impl DefaultTFIDFEngine {
+    pub fn new() -> Self {
+        DefaultTFIDFEngine
+    }
+}
+
+impl TFIDFEngine<f16> for DefaultTFIDFEngine {
+    #[inline]
+    fn tf_vec(freq: &TermFrequency, term_dim_sample: &IndexSet<Box<str>>) -> TFVector<f16> {
+        // Build sparse TF vector: only non-zero entries are stored
+        let term_sum = freq.term_sum() as u32;
+        let len = freq.term_num();
+        let mut ind_vec: Vec<u32> = Vec::with_capacity(len);
+        let mut val_vec: Vec<f16> = Vec::with_capacity(len);
+        for (term, count) in freq.iter() {
+            let count = (count as f32).sqrt();
+            if let Some(idx) = term_dim_sample.get_index(term) {
+                ind_vec.push(idx as u32);
+                val_vec.push(f16::from_f32(count));
+            }
+        }
+        unsafe { TFVector::from_vec(ind_vec, val_vec, len as u32, term_sum) }
+    }
+
+    #[inline(always)]
+    fn tf_denorm(val: f16) -> u32 {
+        val.to_f32().pow(2) as u32
+    }
+}
+
+impl TFIDFEngine<f32> for DefaultTFIDFEngine
+{
+    #[inline]
+    fn tf_vec(freq: &TermFrequency, term_dim_sample: &IndexSet<Box<str>>) -> TFVector<f32> {
+        // Build sparse TF vector: only non-zero entries are stored
+        let term_sum = freq.term_sum() as u32;
+        let len = freq.term_num();
+        let mut ind_vec: Vec<u32> = Vec::with_capacity(len);
+        let mut val_vec: Vec<f32> = Vec::with_capacity(len);
+        for (term, count) in freq.iter() {
+            if let Some(idx) = term_dim_sample.get_index(term) {
+                ind_vec.push(idx as u32);
+                val_vec.push(count as f32);
+            }
+        }
+        unsafe { TFVector::from_vec(ind_vec, val_vec, len as u32, term_sum) }
+    }
+
+    #[inline(always)]
+    fn tf_denorm(val: f32) -> u32 {
+        val as u32
+    }
+}
+
+impl TFIDFEngine<u32> for DefaultTFIDFEngine
+{
+    #[inline]
+    fn tf_vec(freq: &TermFrequency, term_dim_sample: &IndexSet<Box<str>>) -> TFVector<u32> {
+        // Build sparse TF vector: only non-zero entries are stored
+        let term_sum = freq.term_sum() as u32;
+        let len = freq.term_num();
+        let mut ind_vec: Vec<u32> = Vec::with_capacity(len);
+        let mut val_vec: Vec<u32> = Vec::with_capacity(len);
+        for (term, count) in freq.iter() {
+            if let Some(idx) = term_dim_sample.get_index(term) {
+                ind_vec.push(idx as u32);
+                val_vec.push(count as u32);
+            }
+        }
+        unsafe { TFVector::from_vec(ind_vec, val_vec, len as u32, term_sum) }
+    }
+
+    #[inline(always)]
+    fn tf_denorm(val: u32) -> u32 {
+        val
+    }
+}
+
+impl TFIDFEngine<u16> for DefaultTFIDFEngine
+{
+    #[inline]
+    fn tf_vec(freq: &TermFrequency, term_dim_sample: &IndexSet<Box<str>>) -> TFVector<u16> {
+        // Build sparse TF vector: only non-zero entries are stored
+        let term_sum = freq.term_sum() as u32;
+        let len = freq.term_num();
+        let mut ind_vec: Vec<u32> = Vec::with_capacity(len);
+        let mut val_vec: Vec<u16> = Vec::with_capacity(len);
+        for (term, count) in freq.iter() {
+            if let Some(idx) = term_dim_sample.get_index(term) {
+                ind_vec.push(idx as u32);
+                val_vec.push(count as u16);
+            }
+        }
+        unsafe { TFVector::from_vec(ind_vec, val_vec, len as u32, term_sum) }
+    }
+
+    #[inline(always)]
+    fn tf_denorm(val: u16) -> u32 {
+        val as u32
+    }
+}
+```
+
+複数のパラメータ型に対応するため実装が型ごとにわかれていますが、基本的なロジックは同じで、どう数値を圧縮するかの違いになります。
+まずIDFはVectorizerあたり1つなのでパラメータの最適化は必要ないでしょうから、すべての実装で同じロジックになっています。
+TFの方は、パラメータ型ごとに数値の圧縮方法が異なります。
+- `f16`: 平方根を取る非線形な圧縮方法で、小さい値の精度を落とさず、特に値の大きい単語のTF値を浮動小数点数よりさらに強く圧縮することができます。
+- `f32`: TF値をそのまま使用しています。`f32`は十分な精度を持っているため、特別な圧縮は必要ありません。
+- `u32`: Max-minで正規化することで、値の範囲を圧縮しています。これにより、TF値を0から最大値の範囲に収めることができます。
+- `u16`: u32とおなじでMax-minでの正規化です。より精度が低いので、より強い圧縮になります。
+
+TFの値を圧縮することで、TFベクトルのサイズを削減し、メモリ効率を向上させることができます。
+
+明日かく
