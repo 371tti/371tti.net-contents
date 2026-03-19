@@ -77,6 +77,11 @@ is_complete: true
                                 </select>
                             </div>
                             <div>
+                                <label for="result-range">range</label><br>
+                                <input id="result-range" name="range" type="text" class="x-max" value="0-"
+                                    placeholder="例: 0-, 0-30, -20, 50">
+                            </div>
+                            <div>
                                 <label>
                                     <input id="boolean-mode" type="checkbox">
                                     boolean (can use &, |, !, [])
@@ -145,6 +150,7 @@ is_complete: true
         const bm25K1 = document.getElementById('bm25-k1');
         const bm25B = document.getElementById('bm25-b');
         const orderSelect = document.getElementById('order');
+        const rangeInput = document.getElementById('result-range');
         const booleanModeCheckbox = document.getElementById('boolean-mode');
 
         const tagRangeInput = document.getElementById('tag-range');
@@ -213,6 +219,11 @@ is_complete: true
                 orderSelect.value = order;
             }
 
+            const resultRangeText = params.get('range');
+            if (resultRangeText !== null) {
+                rangeInput.value = resultRangeText;
+            }
+
             booleanModeCheckbox.checked = parseBooleanParam(params.get('boolean_mode'));
 
             const k1 = Number(params.get('bm25_k1'));
@@ -225,9 +236,9 @@ is_complete: true
                 bm25B.value = String(b);
             }
 
-            const rangeText = params.get('tag_range');
-            if (rangeText !== null) {
-                tagRangeInput.value = rangeText;
+            const tagRangeText = params.get('tag_range');
+            if (tagRangeText !== null) {
+                tagRangeInput.value = tagRangeText;
             }
 
             const tagFilter = params.get('tag_filter');
@@ -253,6 +264,11 @@ is_complete: true
             params.set('algorithm', algorithmSelect.value);
             params.set('order', orderSelect.value);
 
+            const resultRangeText = (rangeInput.value || '').trim();
+            if (resultRangeText) {
+                params.set('range', resultRangeText);
+            }
+
             if (booleanModeCheckbox.checked) {
                 params.set('boolean_mode', '1');
             }
@@ -262,9 +278,9 @@ is_complete: true
                 params.set('bm25_b', String(Number(bm25B.value)));
             }
 
-            const rangeText = (tagRangeInput.value || '').trim();
-            if (rangeText) {
-                params.set('tag_range', rangeText);
+            const tagRangeText = (tagRangeInput.value || '').trim();
+            if (tagRangeText) {
+                params.set('tag_range', tagRangeText);
             }
 
             const tagFilter = (tagFilterInput.value || '').trim();
@@ -543,6 +559,7 @@ is_complete: true
                 algorithm: buildAlgorithmValue(),
                 tags: getSelectedTagIds(),
                 order: orderSelect.value,
+                range: (rangeInput.value || '0-').trim() || '0-',
             };
 
             setStatus('検索中...', false);
