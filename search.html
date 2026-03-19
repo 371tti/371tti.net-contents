@@ -40,7 +40,7 @@ is_complete: true
 <body>
     <main>
         <article>
-            <h1 class="title">SearchAPI Playground</h1>
+            <h1 class="title">Search API Playground</h1>
             <p class="authors">author: 371tti</p><br>
             <hr>
             <div class="grid3">
@@ -83,9 +83,9 @@ is_complete: true
                                 </label>
                             </div>
                             <div>
-                                <input class="button x-max" type="submit" value="Search">
+                                <input class="button x-max" type="submit" value="search">
                                 <input id="clear-selection" class="button x-max" type="button"
-                                    value="Clear Tag Selection">
+                                    value="clear tag selection">
                             </div>
                         </form>
                     </div>
@@ -358,8 +358,20 @@ is_complete: true
                 meta.appendChild(pathSpan);
                 meta.appendChild(tagsSpan);
 
+                const analyzerLinkWrap = document.createElement('div');
+                analyzerLinkWrap.style.textAlign = 'right';
+                analyzerLinkWrap.style.marginTop = '2mm';
+
+                const analyzerLink = document.createElement('a');
+                analyzerLink.href = `/term_freq_analyzer.html?url=${encodeURIComponent(path)}`;
+                analyzerLink.textContent = 'analyze term freq';
+                analyzerLink.className = 'tiny';
+
+                analyzerLinkWrap.appendChild(analyzerLink);
+
                 article.appendChild(h3);
                 article.appendChild(meta);
+                article.appendChild(analyzerLinkWrap);
                 resultList.appendChild(article);
             }
         }

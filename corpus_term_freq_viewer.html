@@ -1,0 +1,508 @@
+---
+title: Corpus Term Frequency Viewer
+description: Analyze API の corpus-freq を可視化する Playground
+authors:
+- 371tti
+tags:
+- analyze
+- corpus
+- term-frequency
+- api
+is_complete: true
+---
+
+<style>
+    .grid2a {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10mm;
+        height: min-content;
+    }
+
+    .w2a {
+        grid-column: span 2;
+    }
+
+    .term-row {
+        display: grid;
+        grid-template-columns: minmax(120px, 28%) 1fr auto;
+        gap: 3mm;
+        align-items: center;
+        margin: 2mm 0;
+    }
+
+    .term-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .term-bar-wrap {
+        width: 100%;
+        background: color-mix(in oklab, var(--color-bg-2) 65%, transparent);
+        border: 1px solid var(--color-bg-2);
+        height: 5mm;
+        position: relative;
+    }
+
+    .term-bar {
+        height: 100%;
+        background: linear-gradient(90deg,
+                var(--color-accent-0),
+                var(--color-accent-1));
+    }
+
+    @media (max-width: 1200px) {
+        .w2a {
+            grid-column: span 1;
+        }
+
+        .grid2a {
+            grid-column: span 2;
+        }
+    }
+
+    @media (max-width: 900px) {
+        .grid2a {
+            grid-template-columns: 1fr;
+        }
+
+        .w2a {
+            grid-column: span 1;
+        }
+
+        .term-row {
+            grid-template-columns: 1fr;
+            gap: 1mm;
+        }
+    }
+</style>
+
+<body>
+    <main>
+        <article>
+            <h1 class="title">Corpus Frequency API Playground</h1>
+            <p class="authors">author: 371tti</p><br>
+            <hr>
+
+            <div class="grid3">
+                <div class="grid2a">
+                    <div class="w2a">
+                        <h2>Corpus Frequency</h2>
+                        <form id="viewer-form">
+                            <div>
+                                <label for="top-n">top_n</label><br>
+                                <input id="top-n" class="x-max" type="number" min="1" value="10000">
+                            </div>
+                            <div>
+                                <label for="term-filter">term filter (contains)</label><br>
+                                <input id="term-filter" class="x-max" type="text" placeholder="例: rust">
+                            </div>
+                            <div>
+                                <label>
+                                    <input id="no-symbol-only" type="checkbox" checked>
+                                    記号を含まないものだけ表示
+                                </label>
+                            </div>
+                            <div>
+                                <label>
+                                    <input id="not-digit-only" type="checkbox" checked>
+                                    数字のみでないものだけ表示
+                                </label>
+                            </div>
+                            <div>
+                                <label>
+                                    <input id="no-digit-included" type="checkbox">
+                                    数字を含まないものだけ表示
+                                </label>
+                            </div>
+                            <div>
+                                <label>
+                                    <input id="not-alphabet-only" type="checkbox" checked>
+                                    アルファベットでないものだけ表示
+                                </label>
+                            </div>
+                            <div>
+                                <label>
+                                    <input id="not-katakana-only" type="checkbox" checked>
+                                    カタカナでないものだけ表示
+                                </label>
+                            </div>
+                            <div>
+                                <input class="button x-max" type="submit" value="Load Corpus Freq">
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="w2a">
+                        <h2>Options</h2>
+                        <details>
+                            <summary>API</summary>
+                            <div class="indent tiny">
+                                GET /api/analyze/corpus-freq
+                            </div>
+                        </details>
+                    </div>
+                </div>
+
+                <div class="w2">
+                    <div class="result-meta">
+                        <h2 style="margin:0;">Results</h2>
+                        <span id="result-count" class="tiny">0 terms</span>
+                    </div>
+
+                    <div id="status" class="status-box tiny">待機中</div>
+
+                    <div class="status-box tiny">
+                        <div><strong>add_num:</strong> <span id="add-num">0</span></div>
+                        <div><strong>sub_num:</strong> <span id="sub-num">0</span></div>
+                        <div><strong>approx_doc_count:</strong> <span id="doc-count">0</span></div>
+                        <div><strong>unique_terms:</strong> <span id="unique-terms">0</span></div>
+                        <details>
+                            <summary>Last API JSON</summary>
+                            <div class="indent">
+                                <div><small id="last-api-meta">-</small></div>
+                                <div>response</div>
+                                <pre id="last-response-json" style="white-space: pre-wrap; overflow-x: auto;">-</pre>
+                            </div>
+                        </details>
+                    </div>
+
+                    <div id="chart" class="card-o" style="padding: 4mm;"></div>
+                </div>
+            </div>
+        </article>
+    </main>
+</body>
+
+<script>
+    (() => {
+        const form = document.getElementById('viewer-form');
+        const topNInput = document.getElementById('top-n');
+        const filterInput = document.getElementById('term-filter');
+        const noSymbolOnlyCheckbox = document.getElementById('no-symbol-only');
+        const notDigitOnlyCheckbox = document.getElementById('not-digit-only');
+        const noDigitIncludedCheckbox = document.getElementById('no-digit-included');
+        const notAlphabetOnlyCheckbox = document.getElementById('not-alphabet-only');
+        const notKatakanaOnlyCheckbox = document.getElementById('not-katakana-only');
+
+        const statusBox = document.getElementById('status');
+        const resultCount = document.getElementById('result-count');
+        const addNumText = document.getElementById('add-num');
+        const subNumText = document.getElementById('sub-num');
+        const docCountText = document.getElementById('doc-count');
+        const uniqueTermsText = document.getElementById('unique-terms');
+        const chart = document.getElementById('chart');
+
+        const lastApiMeta = document.getElementById('last-api-meta');
+        const lastResponseJson = document.getElementById('last-response-json');
+
+        let latestEntries = [];
+
+        function setStatus(text, isError) {
+            statusBox.textContent = text;
+            statusBox.style.borderColor = isError
+                ? 'color-mix(in oklab, #ef4444 58%, var(--color-border-0))'
+                : 'var(--color-border-0)';
+        }
+
+        function stringifyPrettyJson(data) {
+            try {
+                return JSON.stringify(data, null, 2);
+            } catch (_e) {
+                return String(data);
+            }
+        }
+
+        function toSafeNumber(value) {
+            const n = Number(value);
+            return Number.isFinite(n) ? n : 0;
+        }
+
+        function hasSymbol(term) {
+            return /[^\p{L}\p{N}]/u.test(String(term || ''));
+        }
+
+        function isDigitOnly(term) {
+            return /^\p{N}+$/u.test(String(term || ''));
+        }
+
+        function hasDigit(term) {
+            return /\p{N}/u.test(String(term || ''));
+        }
+
+        function isAlphabetOnly(term) {
+            return /^[A-Za-z]+$/.test(String(term || ''));
+        }
+
+        function isKatakanaOnly(term) {
+            return /^[\u30A0-\u30FFー]+$/.test(String(term || ''));
+        }
+
+        function extractTermCounts(raw) {
+            if (!raw) {
+                return [];
+            }
+
+            if (Array.isArray(raw)) {
+                const pairs = raw
+                    .map((item) => {
+                        if (Array.isArray(item) && item.length >= 2) {
+                            return [String(item[0]), toSafeNumber(item[1])];
+                        }
+                        if (item && typeof item === 'object') {
+                            const key = item.key ?? item.term ?? item[0];
+                            const value = item.value ?? item.count ?? item[1];
+                            return [String(key || ''), toSafeNumber(value)];
+                        }
+                        return ['', 0];
+                    })
+                    .filter(([term, count]) => term && count > 0);
+                return pairs;
+            }
+
+            if (typeof raw === 'object') {
+                return Object.entries(raw)
+                    .map(([term, count]) => [String(term), toSafeNumber(count)])
+                    .filter(([term, count]) => term && count > 0);
+            }
+
+            return [];
+        }
+
+        function parseCorpusResponse(data) {
+            const addNum = toSafeNumber(data && data.add_num);
+            const subNum = toSafeNumber(data && data.sub_num);
+
+            const termCountsRaw = data && data.term_counts;
+            const entries = extractTermCounts(termCountsRaw)
+                .map(([term, count]) => ({ term, count }))
+                .sort((a, b) => a.count - b.count || a.term.localeCompare(b.term));
+
+            return {
+                addNum,
+                subNum,
+                approxDocCount: Math.max(0, addNum - subNum),
+                entries,
+            };
+        }
+
+        function restoreStateFromUrl() {
+            const params = new URLSearchParams(window.location.search || '');
+            const topN = toSafeNumber(params.get('top_n'));
+            if (topN > 0) {
+                topNInput.value = String(Math.floor(topN));
+            }
+            const termFilter = params.get('term_filter');
+            if (termFilter !== null) {
+                filterInput.value = termFilter;
+            }
+
+            const noSymbolOnly = params.get('no_symbol_only');
+            if (noSymbolOnly !== null) {
+                noSymbolOnlyCheckbox.checked = noSymbolOnly !== '0';
+            }
+
+            const notDigitOnly = params.get('not_digit_only');
+            if (notDigitOnly !== null) {
+                notDigitOnlyCheckbox.checked = notDigitOnly === '1';
+            }
+
+            const noDigitIncluded = params.get('no_digit_included');
+            if (noDigitIncluded !== null) {
+                noDigitIncludedCheckbox.checked = noDigitIncluded === '1';
+            }
+
+            const notAlphabetOnly = params.get('not_alphabet_only');
+            if (notAlphabetOnly !== null) {
+                notAlphabetOnlyCheckbox.checked = notAlphabetOnly === '1';
+            }
+
+            const notKatakanaOnly = params.get('not_katakana_only');
+            if (notKatakanaOnly !== null) {
+                notKatakanaOnlyCheckbox.checked = notKatakanaOnly === '1';
+            }
+        }
+
+        function updateUrlFromState() {
+            const params = new URLSearchParams();
+            params.set('top_n', String(Math.max(1, toSafeNumber(topNInput.value) || 10000)));
+
+            const termFilter = String(filterInput.value || '').trim();
+            if (termFilter) {
+                params.set('term_filter', termFilter);
+            }
+
+            if (!noSymbolOnlyCheckbox.checked) {
+                params.set('no_symbol_only', '0');
+            }
+
+            if (notDigitOnlyCheckbox.checked) {
+                params.set('not_digit_only', '1');
+            }
+
+            if (noDigitIncludedCheckbox.checked) {
+                params.set('no_digit_included', '1');
+            }
+
+            if (notAlphabetOnlyCheckbox.checked) {
+                params.set('not_alphabet_only', '1');
+            }
+
+            if (notKatakanaOnlyCheckbox.checked) {
+                params.set('not_katakana_only', '1');
+            }
+
+            const queryText = params.toString();
+            const nextUrl = `${window.location.pathname}${queryText ? `?${queryText}` : ''}`;
+            window.history.replaceState(null, '', nextUrl);
+        }
+
+        function renderChart(entries) {
+            chart.innerHTML = '';
+
+            const topN = Math.max(1, toSafeNumber(topNInput.value) || 10000);
+            const termFilter = String(filterInput.value || '').trim().toLocaleLowerCase();
+            const noSymbolOnly = noSymbolOnlyCheckbox.checked;
+            const notDigitOnly = notDigitOnlyCheckbox.checked;
+            const noDigitIncluded = noDigitIncludedCheckbox.checked;
+            const notAlphabetOnly = notAlphabetOnlyCheckbox.checked;
+            const notKatakanaOnly = notKatakanaOnlyCheckbox.checked;
+
+            const filtered = entries.filter((item) => {
+                if (noSymbolOnly && hasSymbol(item.term)) {
+                    return false;
+                }
+                if (notDigitOnly && isDigitOnly(item.term)) {
+                    return false;
+                }
+                if (noDigitIncluded && hasDigit(item.term)) {
+                    return false;
+                }
+                if (notAlphabetOnly && isAlphabetOnly(item.term)) {
+                    return false;
+                }
+                if (notKatakanaOnly && isKatakanaOnly(item.term)) {
+                    return false;
+                }
+                if (!termFilter) {
+                    return true;
+                }
+                return item.term.toLocaleLowerCase().includes(termFilter);
+            });
+
+            const topEntries = filtered.slice(0, topN);
+            resultCount.textContent = `${topEntries.length} terms`;
+            uniqueTermsText.textContent = String(entries.length);
+
+            if (topEntries.length === 0) {
+                const p = document.createElement('p');
+                p.className = 'tiny';
+                p.textContent = '表示できる単語がありません。';
+                chart.appendChild(p);
+                return;
+            }
+
+            const maxCount = topEntries.reduce((max, item) => Math.max(max, item.count), 1);
+            for (const item of topEntries) {
+                const row = document.createElement('div');
+                row.className = 'term-row';
+
+                const label = document.createElement('div');
+                label.className = 'term-label mono';
+                label.title = item.term;
+                label.textContent = item.term;
+
+                const barWrap = document.createElement('div');
+                barWrap.className = 'term-bar-wrap';
+
+                const bar = document.createElement('div');
+                bar.className = 'term-bar';
+                bar.style.width = `${Math.max(1, (item.count / maxCount) * 100)}%`;
+
+                const value = document.createElement('div');
+                value.className = 'mono';
+                value.textContent = String(item.count);
+
+                barWrap.appendChild(bar);
+                row.appendChild(label);
+                row.appendChild(barWrap);
+                row.appendChild(value);
+                chart.appendChild(row);
+            }
+        }
+
+        async function loadCorpusFreq() {
+            const url = '/api/analyze/corpus-freq';
+            setStatus(`取得中: ${url}`, false);
+            const startedAt = performance.now();
+
+            const res = await fetch(url);
+            if (!res.ok) {
+                throw new Error(`corpus-freq request failed: ${res.status}`);
+            }
+
+            const data = await res.json();
+            const elapsed = performance.now() - startedAt;
+            const parsed = parseCorpusResponse(data);
+
+            addNumText.textContent = String(parsed.addNum);
+            subNumText.textContent = String(parsed.subNum);
+            docCountText.textContent = String(parsed.approxDocCount);
+
+            latestEntries = parsed.entries;
+            renderChart(latestEntries);
+
+            lastApiMeta.textContent = `GET ${url} (${elapsed.toFixed(1)} ms)`;
+            lastResponseJson.textContent = stringifyPrettyJson(data);
+            setStatus('取得完了', false);
+            updateUrlFromState();
+        }
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            try {
+                await loadCorpusFreq();
+            } catch (error) {
+                console.error(error);
+                setStatus(`エラー: ${error.message || error}`, true);
+            }
+        });
+
+        filterInput.addEventListener('input', () => {
+            renderChart(latestEntries);
+            updateUrlFromState();
+        });
+
+        noSymbolOnlyCheckbox.addEventListener('change', () => {
+            renderChart(latestEntries);
+            updateUrlFromState();
+        });
+
+        notDigitOnlyCheckbox.addEventListener('change', () => {
+            renderChart(latestEntries);
+            updateUrlFromState();
+        });
+
+        noDigitIncludedCheckbox.addEventListener('change', () => {
+            renderChart(latestEntries);
+            updateUrlFromState();
+        });
+
+        notAlphabetOnlyCheckbox.addEventListener('change', () => {
+            renderChart(latestEntries);
+            updateUrlFromState();
+        });
+
+        notKatakanaOnlyCheckbox.addEventListener('change', () => {
+            renderChart(latestEntries);
+            updateUrlFromState();
+        });
+
+        restoreStateFromUrl();
+        loadCorpusFreq().catch((error) => {
+            console.error(error);
+            setStatus(`エラー: ${error.message || error}`, true);
+        });
+    })();
+</script>

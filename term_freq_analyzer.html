@@ -1,0 +1,470 @@
+---
+title: Term Frequency Analyzer
+description: Analyze API を使って指定ドキュメントの単語頻度を可視化する Playground
+authors:
+- 371tti
+tags:
+- analyze
+- term-frequency
+- api
+is_complete: true
+---
+
+<style>
+    .grid2a {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10mm;
+        height: min-content;
+    }
+
+    .w2a {
+        grid-column: span 2;
+    }
+
+    .term-row {
+        display: grid;
+        grid-template-columns: minmax(120px, 28%) 1fr auto;
+        gap: 3mm;
+        align-items: center;
+        margin: 2mm 0;
+    }
+
+    .term-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .term-bar-wrap {
+        width: 100%;
+        background: color-mix(in oklab, var(--color-bg-2) 65%, transparent);
+        border: 1px solid var(--color-bg-2);
+        height: 5mm;
+        position: relative;
+    }
+
+    .term-bar {
+        height: 100%;
+        background: linear-gradient(90deg,
+                var(--color-accent-0),
+                var(--color-accent-1));
+    }
+
+    @media (max-width: 1200px) {
+        .w2a {
+            grid-column: span 1;
+        }
+
+        .grid2a {
+            grid-column: span 2;
+        }
+    }
+
+
+    @media (max-width: 900px) {
+        .grid2a {
+            grid-template-columns: 1fr;
+        }
+
+        .w2a {
+            grid-column: span 1;
+        }
+
+        .term-row {
+            grid-template-columns: 1fr;
+            gap: 1mm;
+        }
+    }
+</style>
+
+<body>
+    <main>
+        <article>
+            <h1 class="title">Analyze API Playground</h1>
+            <p class="authors">author: 371tti</p><br>
+            <hr>
+
+            <div class="grid3">
+                <div class="grid2a">
+                    <div class="w2a">
+                        <h2>Term Frequency</h2>
+                        <form id="analyze-form">
+                            <div>
+                                <label for="doc-path">path</label><br>
+                                <input id="doc-path" class="x-max" type="text"
+                                    placeholder="例: article_inbox/rust_for_haters.md" required>
+                            </div>
+                            <div>
+                                <label for="top-n">top_n</label><br>
+                                <input id="top-n" class="x-max" type="number" min="1" value="1000">
+                            </div>
+                            <div>
+                                <label>
+                                    <input id="idf-correction-mode" type="checkbox">
+                                    idf-correction (use corpus-freq as idf)
+                                </label>
+                            </div>
+                            <div>
+                                <input class="button x-max" type="submit" value="Analyze">
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="w2a">
+                        <h2>Options</h2>
+                        <details>
+                            <summary>API</summary>
+                            <div class="indent tiny">
+                                GET /api/analyze/term-freq/{path...}
+                                <br>
+                                GET /api/analyze/corpus-freq (idf-correction mode)
+                            </div>
+                        </details>
+                    </div>
+                </div>
+
+                <div class="w2">
+                    <div class="result-meta">
+                        <h2 style="margin:0;">Results</h2>
+                        <span id="result-count" class="tiny">0 terms</span>
+                    </div>
+
+                    <div id="status" class="status-box tiny">待機中</div>
+
+                    <div class="status-box tiny">
+                        <div><strong>total_terms:</strong> <span id="total-terms">0</span></div>
+                        <div><strong>unique_terms:</strong> <span id="unique-terms">0</span></div>
+                        <details>
+                            <summary>Last API JSON</summary>
+                            <div class="indent">
+                                <div><small id="last-api-meta">-</small></div>
+                                <div>response</div>
+                                <pre id="last-response-json" style="white-space: pre-wrap; overflow-x: auto;">-</pre>
+                            </div>
+                        </details>
+                    </div>
+
+                    <div id="chart" class="card-o" style="padding: 4mm;"></div>
+                </div>
+            </div>
+        </article>
+    </main>
+</body>
+
+<script>
+    (() => {
+        const form = document.getElementById('analyze-form');
+        const pathInput = document.getElementById('doc-path');
+        const topNInput = document.getElementById('top-n');
+        const idfCorrectionModeCheckbox = document.getElementById('idf-correction-mode');
+
+        const resultCount = document.getElementById('result-count');
+        const statusBox = document.getElementById('status');
+        const totalTerms = document.getElementById('total-terms');
+        const uniqueTerms = document.getElementById('unique-terms');
+        const chart = document.getElementById('chart');
+
+        const lastApiMeta = document.getElementById('last-api-meta');
+        const lastResponseJson = document.getElementById('last-response-json');
+
+        function setStatus(text, isError) {
+            statusBox.textContent = text;
+            statusBox.style.borderColor = isError
+                ? 'color-mix(in oklab, #ef4444 58%, var(--color-border-0))'
+                : 'var(--color-border-0)';
+        }
+
+        function stringifyPrettyJson(data) {
+            try {
+                return JSON.stringify(data, null, 2);
+            } catch (_e) {
+                return String(data);
+            }
+        }
+
+        function normalizePathInput(raw) {
+            return String(raw || '')
+                .trim()
+                .replace(/^\/+/, '')
+                .replace(/\/{2,}/g, '/');
+        }
+
+        function extractPathFromUrlLike(raw) {
+            const text = String(raw || '').trim();
+            if (!text) {
+                return '';
+            }
+
+            try {
+                const parsed = new URL(text, window.location.origin);
+                const normalized = normalizePathInput(decodeURIComponent(parsed.pathname || ''));
+                return normalized.replace(/^raw\//, '');
+            } catch (_e) {
+                return normalizePathInput(text).replace(/^raw\//, '');
+            }
+        }
+
+        function restoreStateFromUrl() {
+            const params = new URLSearchParams(window.location.search || '');
+
+            const urlParam = params.get('url');
+            const pathParam = params.get('path');
+            const pathFromQuery = urlParam ? extractPathFromUrlLike(urlParam) : normalizePathInput(pathParam || '');
+            if (pathFromQuery) {
+                pathInput.value = pathFromQuery;
+            }
+
+            const topN = Number(params.get('top_n'));
+            if (Number.isFinite(topN) && topN > 0) {
+                topNInput.value = String(Math.floor(topN));
+            }
+
+            idfCorrectionModeCheckbox.checked = params.get('idf-correction') === '1';
+        }
+
+        function updateUrlFromState() {
+            const params = new URLSearchParams();
+            const normalizedPath = normalizePathInput(pathInput.value);
+            const topN = Math.max(1, Number(topNInput.value) || 30);
+
+            if (normalizedPath) {
+                params.set('url', `/${normalizedPath}`);
+            }
+            params.set('top_n', String(topN));
+            if (idfCorrectionModeCheckbox.checked) {
+                params.set('idf-correction', '1');
+            }
+
+            const queryText = params.toString();
+            const nextUrl = `${window.location.pathname}${queryText ? `?${queryText}` : ''}`;
+            window.history.replaceState(null, '', nextUrl);
+        }
+
+        function buildAnalyzeUrl(pathText) {
+            const normalized = normalizePathInput(pathText);
+            if (!normalized) {
+                throw new Error('path を入力してください');
+            }
+            const encodedPath = normalized
+                .split('/')
+                .filter((seg) => seg.length > 0)
+                .map((seg) => encodeURIComponent(seg))
+                .join('/');
+            return `/api/analyze/term-freq/${encodedPath}`;
+        }
+
+        function parseTermFrequencyResponse(data) {
+            const map = data && typeof data.term_count === 'object' && data.term_count
+                ? data.term_count
+                : {};
+
+            const entries = Object.entries(map)
+                .map(([term, count]) => ({ term, count: Number(count) || 0 }))
+                .filter((item) => item.term && Number.isFinite(item.count) && item.count > 0)
+                .sort((a, b) => b.count - a.count || a.term.localeCompare(b.term));
+
+            const total = Number(data && data.total_term_count);
+            return {
+                entries,
+                totalTermCount: Number.isFinite(total)
+                    ? total
+                    : entries.reduce((acc, item) => acc + item.count, 0),
+            };
+        }
+
+        function parseCorpusFrequencyResponse(data) {
+            const raw = data && data.term_counts;
+            if (!raw) {
+                return new Map();
+            }
+
+            const map = new Map();
+            if (Array.isArray(raw)) {
+                for (const item of raw) {
+                    if (Array.isArray(item) && item.length >= 2) {
+                        map.set(String(item[0]), Number(item[1]) || 0);
+                    } else if (item && typeof item === 'object') {
+                        const key = String(item.key ?? item.k ?? item.term ?? item[0] ?? '');
+                        const value = Number(item.value ?? item.v ?? item.count ?? item[1] ?? 0) || 0;
+                        if (key) {
+                            map.set(key, value);
+                        }
+                    }
+                }
+                return map;
+            }
+
+            if (typeof raw === 'object') {
+                for (const [term, count] of Object.entries(raw)) {
+                    map.set(String(term), Number(count) || 0);
+                }
+            }
+            return map;
+        }
+
+        function numberFromUnknown(value, fallback = 0) {
+            if (typeof value === 'number' && Number.isFinite(value)) {
+                return value;
+            }
+            if (typeof value === 'string') {
+                const n = Number(value);
+                return Number.isFinite(n) ? n : fallback;
+            }
+            if (value && typeof value === 'object') {
+                const candidates = ['value', 'v', 'inner', '0'];
+                for (const key of candidates) {
+                    if (key in value) {
+                        const n = Number(value[key]);
+                        if (Number.isFinite(n)) {
+                            return n;
+                        }
+                    }
+                }
+            }
+            return fallback;
+        }
+
+        function computeidfCorrectionEntries(tfEntries, corpusData) {
+            const addNum = numberFromUnknown(corpusData && corpusData.add_num, 0);
+            const subNum = numberFromUnknown(corpusData && corpusData.sub_num, 0);
+            const dfMap = parseCorpusFrequencyResponse(corpusData);
+            const maxDf = Array.from(dfMap.values()).reduce((m, v) => Math.max(m, Number(v) || 0), 1);
+            // add/sub が世代カウンタの場合に備えて、max(df) も使って N を推定する。
+            const docCount = Math.max(1, addNum - subNum, maxDf);
+
+            return tfEntries
+                .map((item) => {
+                    const df = Math.max(0, Number(dfMap.get(item.term)) || 0);
+                    // BM25-like IDF: 頻出語の重みをより下げる。
+                    const idf = Math.log(((docCount - df) + 0.5) / (df + 0.5) + 1);
+                    const tf = Math.max(1, Number(item.count) || 1);
+                    const score = (1 + Math.log(tf)) * idf;
+                    return {
+                        term: item.term,
+                        value: score,
+                        tf,
+                        df,
+                    };
+                })
+                .filter((item) => Number.isFinite(item.value) && item.value > 0)
+                .sort((a, b) => b.value - a.value || a.term.localeCompare(b.term));
+        }
+
+        function renderChart(entries, topN, valueMode) {
+            chart.innerHTML = '';
+
+            const topEntries = entries.slice(0, topN);
+            resultCount.textContent = `${topEntries.length} terms`;
+            uniqueTerms.textContent = String(entries.length);
+
+            if (topEntries.length === 0) {
+                const p = document.createElement('p');
+                p.className = 'tiny';
+                p.textContent = '表示できる単語がありません。';
+                chart.appendChild(p);
+                return;
+            }
+
+            const maxValue = topEntries.reduce(
+                (max, item) => Math.max(max, Number(item.value ?? item.count) || 0),
+                1,
+            );
+
+            for (const item of topEntries) {
+                const row = document.createElement('div');
+                row.className = 'term-row';
+
+                const label = document.createElement('div');
+                label.className = 'term-label mono';
+                label.title = item.term;
+                label.textContent = item.term;
+
+                const barWrap = document.createElement('div');
+                barWrap.className = 'term-bar-wrap';
+
+                const bar = document.createElement('div');
+                bar.className = 'term-bar';
+                const value = Number(item.value ?? item.count) || 0;
+                bar.style.width = `${Math.max(1, (value / maxValue) * 100)}%`;
+
+                const valueText = document.createElement('div');
+                valueText.className = 'mono';
+                if (valueMode === 'idf-correction') {
+                    valueText.title = `tf=${item.tf} df=${item.df}`;
+                    valueText.textContent = value.toFixed(6);
+                } else {
+                    valueText.textContent = String(item.count);
+                }
+
+                barWrap.appendChild(bar);
+                row.appendChild(label);
+                row.appendChild(barWrap);
+                row.appendChild(valueText);
+                chart.appendChild(row);
+            }
+        }
+
+        async function analyze() {
+            const pathText = pathInput.value;
+            const topN = Math.max(1, Number(topNInput.value) || 30);
+            const url = buildAnalyzeUrl(pathText);
+            const isidfCorrectionMode = idfCorrectionModeCheckbox.checked;
+
+            setStatus(`取得中: ${url}${isidfCorrectionMode ? ' + /api/analyze/corpus-freq' : ''}`, false);
+            const startedAt = performance.now();
+
+            const [termRes, corpusRes] = await Promise.all([
+                fetch(url),
+                isidfCorrectionMode ? fetch('/api/analyze/corpus-freq') : Promise.resolve(null),
+            ]);
+
+            if (!termRes.ok) {
+                throw new Error(`analyze request failed: ${termRes.status}`);
+            }
+            if (corpusRes && !corpusRes.ok) {
+                throw new Error(`corpus-freq request failed: ${corpusRes.status}`);
+            }
+
+            const data = await termRes.json();
+            const corpusData = corpusRes ? await corpusRes.json() : null;
+            const elapsed = performance.now() - startedAt;
+
+            const parsed = parseTermFrequencyResponse(data);
+            totalTerms.textContent = String(parsed.totalTermCount);
+
+            if (isidfCorrectionMode) {
+                const idfCorrectionEntries = computeidfCorrectionEntries(parsed.entries, corpusData || {});
+                renderChart(idfCorrectionEntries, topN, 'idf-correction');
+            } else {
+                renderChart(parsed.entries, topN, 'tf');
+            }
+
+            lastApiMeta.textContent = `${isidfCorrectionMode ? 'GET /api/analyze/corpus-freq + ' : ''}GET ${url} (${elapsed.toFixed(1)} ms)`;
+            lastResponseJson.textContent = stringifyPrettyJson(
+                isidfCorrectionMode ? { term_freq: data, corpus_freq: corpusData } : data,
+            );
+            setStatus(`取得完了: ${normalizePathInput(pathText)} (${isidfCorrectionMode ? 'idf-correction' : 'tf'})`, false);
+            updateUrlFromState();
+        }
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            try {
+                await analyze();
+            } catch (error) {
+                console.error(error);
+                setStatus(`エラー: ${error.message || error}`, true);
+            }
+        });
+
+        restoreStateFromUrl();
+        if (!normalizePathInput(pathInput.value)) {
+            pathInput.value = 'index.html';
+        }
+        analyze().catch((error) => {
+            console.error(error);
+            setStatus(`エラー: ${error.message || error}`, true);
+        });
+    })();
+</script>
