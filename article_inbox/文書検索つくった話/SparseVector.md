@@ -3,6 +3,7 @@ title: SparseVector
 description: 疎ベクトルの実装
 authors:
 - 371tti
+- t3tra-dev
 - ChatGPT
 tags:
 - article
