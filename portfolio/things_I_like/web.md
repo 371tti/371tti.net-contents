@@ -4,10 +4,8 @@ authors:
     - 371tti
 tags:
 - article
-- inbox
 is_complete: false
 ---
-# 私の好きなWebページ集
 私がよく見る、参考にしている、役に立った、面白いと思ったWebページのリストです。  
 
 ## [とほほのWWW入門](https://www.tohoho-web.com/www.html)
