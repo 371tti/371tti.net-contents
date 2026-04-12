@@ -172,6 +172,7 @@ is_complete: true
         const state = {
             sourceBitmap: null,
             sourceLabel: '',
+            sourceFileStem: 'image',
             nodes: [],
             nextNodeId: 1,
             pendingRender: null,
@@ -384,6 +385,39 @@ is_complete: true
             elements.status.style.color = ok ? 'var(--color-text-0)' : 'var(--alert-color-0, #ff5f5f)';
         }
 
+        function normalizeFileStem(fileName) {
+            if (typeof fileName !== 'string') return 'image';
+
+            const noExt = fileName.replace(/\.[^.]+$/, '').trim();
+            const sanitized = noExt
+                .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_')
+                .replace(/\s+/g, '_')
+                .replace(/_+/g, '_')
+                .replace(/^[_\.]+|[_\.]+$/g, '');
+
+            return sanitized || 'image';
+        }
+
+        function pickFileNameLikeText(label) {
+            if (typeof label !== 'string') return '';
+            const trimmed = label.trim();
+            if (!trimmed) return '';
+
+            try {
+                const parsed = new URL(trimmed);
+                const segments = (parsed.pathname || '').split('/').filter(Boolean);
+                const last = segments[segments.length - 1] || '';
+                return decodeURIComponent(last || '');
+            } catch (_) {
+                return trimmed;
+            }
+        }
+
+        function buildEffectorOutputFileName(ext) {
+            const safeExt = String(ext || 'png').toLowerCase() === 'jpeg' ? 'jpg' : String(ext || 'png').toLowerCase();
+            return `${state.sourceFileStem || 'image'}_effector.${safeExt}`;
+        }
+
         function updateImageMeta(label) {
             if (!state.sourceBitmap) {
                 elements.imageMeta.textContent = '画像は読み込まれていません';
@@ -392,11 +426,19 @@ is_complete: true
             elements.imageMeta.textContent = `${label} | ${state.sourceBitmap.width} × ${state.sourceBitmap.height}`;
         }
 
+        function loadImageFromBlob(blob, label, preferredStem) {
+            if (!(blob instanceof Blob)) {
+                return Promise.reject(new Error('invalid blob'));
+            }
+
+            return createImageBitmap(blob).then((bitmap) => {
+                setSourceBitmap(bitmap, label || '受信画像', preferredStem);
+            });
+        }
+
         function loadImageFromFile(file) {
             if (!file) return;
-            createImageBitmap(file).then((bitmap) => {
-                setSourceBitmap(bitmap, file.name || 'アップロード画像');
-            }).catch((error) => {
+            loadImageFromBlob(file, file.name || 'アップロード画像', file.name || 'image').catch((error) => {
                 console.error(error);
                 setStatus('画像の読み込みに失敗しました。', false);
             });
@@ -412,7 +454,7 @@ is_complete: true
                 })
                 .then(createImageBitmap)
                 .then((bitmap) => {
-                    setSourceBitmap(bitmap, url);
+                    setSourceBitmap(bitmap, url, pickFileNameLikeText(url) || 'image');
                     setStatus('画像を読み込みました。', true);
                 })
                 .catch((error) => {
@@ -421,9 +463,11 @@ is_complete: true
                 });
         }
 
-        function setSourceBitmap(bitmap, label) {
+        function setSourceBitmap(bitmap, label, preferredStem) {
             state.sourceBitmap = bitmap;
             state.sourceLabel = label || '画像';
+            const stemSource = preferredStem || pickFileNameLikeText(state.sourceLabel) || state.sourceFileStem;
+            state.sourceFileStem = normalizeFileStem(stemSource);
             updateImageMeta(state.sourceLabel);
             schedulePreviewRender();
         }
@@ -431,6 +475,7 @@ is_complete: true
         function resetImage() {
             state.sourceBitmap = null;
             state.sourceLabel = '';
+            state.sourceFileStem = 'image';
             elements.sourceCanvas.width = 0;
             elements.sourceCanvas.height = 0;
             elements.resultCanvas.width = 0;
@@ -1979,7 +2024,7 @@ is_complete: true
                     }
                     try {
                         const bitmap = await createImageBitmap(blob);
-                        setSourceBitmap(bitmap, '書き戻し画像');
+                        setSourceBitmap(bitmap, '書き戻し画像', `${state.sourceFileStem || 'image'}_writeback`);
                         setStatus('結果をソースに書き戻しました。', true);
                     } catch (error) {
                         console.error(error);
@@ -2013,9 +2058,8 @@ is_complete: true
                         return;
                     }
                     const link = document.createElement('a');
-                    const timestamp = new Date().toISOString().replace(/[-:.T]/g, '').slice(0, 14);
                     const ext = format === 'jpeg' ? 'jpg' : 'png';
-                    link.download = `image_effector_${timestamp}.${ext}`;
+                    link.download = buildEffectorOutputFileName(ext);
                     link.href = URL.createObjectURL(blob);
                     link.click();
                     URL.revokeObjectURL(link.href);
@@ -2163,6 +2207,62 @@ is_complete: true
             });
         }
 
+        function setupExternalImageReceiver() {
+            window.addEventListener('message', async (event) => {
+                const payload = event.data;
+                if (!payload || payload.type !== 'image-effector-import') return;
+
+                const blob = payload.blob;
+                if (!(blob instanceof Blob)) return;
+
+                const mimeType = String(payload.mimeType || blob.type || '').toLowerCase();
+                if (!mimeType.startsWith('image/')) {
+                    return;
+                }
+
+                const fileName = typeof payload.fileName === 'string' && payload.fileName
+                    ? payload.fileName
+                    : 'imported-image.png';
+
+                const replyOrigin = event.origin && event.origin !== 'null' ? event.origin : '*';
+
+                try {
+                    await loadImageFromBlob(blob, fileName);
+
+                    if (event.source && typeof event.source.postMessage === 'function') {
+                        event.source.postMessage({
+                            type: 'image-effector-import-ack',
+                            id: payload.id || null,
+                            ok: true,
+                        }, replyOrigin);
+                    }
+
+                    setStatus(`外部ツールから画像を受信しました (${state.sourceBitmap.width} × ${state.sourceBitmap.height})`);
+                } catch (error) {
+                    console.error(error);
+
+                    if (event.source && typeof event.source.postMessage === 'function') {
+                        event.source.postMessage({
+                            type: 'image-effector-import-ack',
+                            id: payload.id || null,
+                            ok: false,
+                            error: 'import-failed',
+                        }, replyOrigin);
+                    }
+
+                    setStatus('外部ツールからの画像受信に失敗しました。', false);
+                }
+            });
+
+            if (window.opener && typeof window.opener.postMessage === 'function') {
+                try {
+                    window.opener.postMessage({ type: 'image-effector-receiver-ready' }, '*');
+                } catch (error) {
+                    console.error(error);
+                }
+            }
+        }
+
         function attachEvents() {
             elements.fileInput.addEventListener('change', (event) => {
                 const file = event.target.files?.[0];
@@ -2242,6 +2342,7 @@ is_complete: true
         }
 
         function init() {
+            setupExternalImageReceiver();
             attachEvents();
             setupCanvasViewer();
             updatePreviewScaleLabel();

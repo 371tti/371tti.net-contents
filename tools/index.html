@@ -9,67 +9,249 @@ tags:
 is_complete: false
 ---
 
+<style>
+    .tool-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 2mm;
+        margin: 6mm 0 5mm;
+    }
 
+    .tool-tab {
+        appearance: none;
+        border: 1px solid var(--color-bg-2);
+        background: var(--color-bg-1);
+        color: var(--color-text-0);
+        padding: 2mm 5mm;
+        cursor: pointer;
+        font: inherit;
+    }
+
+    .tool-tab:hover {
+        background: var(--color-accent-0);
+    }
+
+    .tool-tab.active {
+        background: var(--color-accent-0);
+        color: var(--color-text-1);
+        border-color: var(--color-accent-0);
+    }
+
+    .tool-count {
+        margin-left: auto;
+        color: var(--color-text-0);
+        font-size: 0.9rem;
+    }
+
+    .tool-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6mm;
+        align-items: stretch;
+    }
+
+    .tool-card-link[hidden] {
+        display: none !important;
+    }
+
+    .tool-card {
+        display: grid;
+        grid-template-rows: auto auto 1fr;
+        gap: 2.4mm;
+    }
+
+    .tool-card h2 {
+        padding: 0;
+        margin: 0;
+        line-height: 1.35;
+        font-size: 1.1em;
+    }
+
+    .tool-card-desc {
+        margin: 0;
+        padding-top: 2.2mm;
+        border-top: 1px solid var(--color-bg-2);
+        color: var(--color-text-0);
+        line-height: 1.6;
+    }
+
+    .tool-card-tag {
+        font-size: 0.78rem;
+        color: var(--color-text-0);
+        border: 1px solid var(--color-bg-2);
+        width: fit-content;
+        padding: 1mm 2.5mm;
+    }
+
+    .tool-empty {
+        margin: 5mm 0 0;
+        color: var(--color-text-0);
+    }
+
+    @media (max-width: 900px) {
+        .tool-grid {
+            grid-template-columns: 1fr;
+            gap: 4mm;
+        }
+
+        .tool-count {
+            width: 100%;
+            margin-left: 0;
+        }
+    }
+</style>
 <main>
     <article>
         <h1 class="title">Tool List</h1>
         <p>371tti.netで公開しているツールの一覧です。</p>
         <hr>
-        <div class="grid3">
-            <a href="/tools/2d_code.html">
-                <div class="card max">
+        <div class="tool-tabs" role="tablist" aria-label="Tool categories">
+            <button type="button" class="tool-tab active" role="tab" aria-selected="true" data-filter="all">All</button>
+            <button type="button" class="tool-tab" role="tab" aria-selected="false" data-filter="image">Image</button>
+            <button type="button" class="tool-tab" role="tab" aria-selected="false"
+                data-filter="display">Display</button>
+            <button type="button" class="tool-tab" role="tab" aria-selected="false"
+                data-filter="encoding">Encoding</button>
+            <button type="button" class="tool-tab" role="tab" aria-selected="false" data-filter="math">Math</button>
+            <div id="toolCount" class="tool-count">10件表示</div>
+        </div>
+
+        <div id="toolGrid" class="tool-grid">
+            <a class="tool-card-link" data-kind="encoding" href="/tools/2d_code.html">
+                <div class="card max tool-card">
+                    <span class="tool-card-tag">Encoding</span>
                     <h2>2D Code Generator</h2>
-                    <p>QRコードやマイクロQRコードを生成するツール</p>
+                    <p class="tool-card-desc">QRコードやマイクロQRコードを生成するツール</p>
                 </div>
             </a>
-            <a href="/tools/SHOW.html">
-                <div class="card max">
+            <a class="tool-card-link" data-kind="display" href="/tools/SHOW.html">
+                <div class="card max tool-card">
+                    <span class="tool-card-tag">Display</span>
                     <h2>Show</h2>
-                    <p>入力したテキストを画面いっぱいに表示するツール</p>
+                    <p class="tool-card-desc">入力したテキストを画面いっぱいに表示するツール</p>
                 </div>
             </a>
-            <a href="/tools/clock.html">
-                <div class="card max">
+            <a class="tool-card-link" data-kind="display" href="/tools/clock.html">
+                <div class="card max tool-card">
+                    <span class="tool-card-tag">Display</span>
                     <h2>Clock</h2>
-                    <p>シンプルなデジタル時計</p>
+                    <p class="tool-card-desc">シンプルなデジタル時計</p>
                 </div>
             </a>
-            <a href="/tools/color.html">
-                <div class="card max">
+            <a class="tool-card-link" data-kind="display" href="/tools/color.html">
+                <div class="card max tool-card">
+                    <span class="tool-card-tag">Display</span>
                     <h2>Color</h2>
-                    <p>色を確認するためのツール</p>
+                    <p class="tool-card-desc">色を確認するためのツール</p>
                 </div>
             </a>
-            <a href="/tools/image_effector.html">
-                <div class="card max">
+            <a class="tool-card-link" data-kind="image" href="/tools/image_effector.html">
+                <div class="card max tool-card">
+                    <span class="tool-card-tag">Image</span>
                     <h2>Image Effector</h2>
-                    <p>画像にエフェクトをかけるツール</p>
+                    <p class="tool-card-desc">画像にエフェクトをかけるツール</p>
                 </div>
             </a>
-            <a href="/tools/utf-8_steganography.html">
-                <div class="card max">
+            <a class="tool-card-link" data-kind="encoding" href="/tools/utf-8_steganography.html">
+                <div class="card max tool-card">
+                    <span class="tool-card-tag">Encoding</span>
                     <h2>UTF-8 Steganography</h2>
-                    <p>ゼロ幅文字を利用したステガノグラフィーツール</p>
+                    <p class="tool-card-desc">ゼロ幅文字を利用したステガノグラフィーツール</p>
                 </div>
             </a>
-            <a href="/tools/math_synthesizer.html">
-                <div class="card max">
+            <a class="tool-card-link" data-kind="math" href="/tools/math_synthesizer.html">
+                <div class="card max tool-card">
+                    <span class="tool-card-tag">Math</span>
                     <h2>Math Synthesizer</h2>
-                    <p>数式を音に変換するツール</p>
+                    <p class="tool-card-desc">数式を音に変換するツール</p>
                 </div>
             </a>
-            <a href="/tools/mandelbrot.html">
-                <div class="card max">
+            <a class="tool-card-link" data-kind="math" href="/tools/mandelbrot.html">
+                <div class="card max tool-card">
+                    <span class="tool-card-tag">Math</span>
                     <h2>Mandelbrot Set Viewer</h2>
-                    <p>マンデルブロ集合を描画するツール</p>
+                    <p class="tool-card-desc">マンデルブロ集合を描画するツール</p>
                 </div>
             </a>
-            <a href="/tools/encode.html">
-                <div class="card max">
+            <a class="tool-card-link" data-kind="encoding" href="/tools/encode.html">
+                <div class="card max tool-card">
+                    <span class="tool-card-tag">Encoding</span>
                     <h2>Encoder / Decoder</h2>
-                    <p>さまざまなエンコードやハッシュ、数値表現の相互変換ツール</p>
+                    <p class="tool-card-desc">さまざまなエンコードやハッシュ、数値表現の相互変換ツール</p>
+                </div>
+            </a>
+            <a class="tool-card-link" data-kind="image" href="/tools/trapezoidal_corrector.html">
+                <div class="card max tool-card">
+                    <span class="tool-card-tag">Image</span>
+                    <h2>Trapezoidal Corrector</h2>
+                    <p class="tool-card-desc">台形補間を用いた画像補正ツール</p>
                 </div>
             </a>
         </div>
+        <p id="toolEmpty" class="tool-empty" hidden>このカテゴリにはまだツールがありません。</p>
     </article>
 </main>
+
+<script>
+    (() => {
+        const tabs = [...document.querySelectorAll('.tool-tab')];
+        const cards = [...document.querySelectorAll('.tool-card-link')];
+        const countEl = document.getElementById('toolCount');
+        const emptyEl = document.getElementById('toolEmpty');
+
+        function applyFilter(filter) {
+            const activeFilter = tabs.some((tab) => tab.dataset.filter === filter) ? filter : 'all';
+
+            tabs.forEach((tab) => {
+                const active = tab.dataset.filter === activeFilter;
+                tab.classList.toggle('active', active);
+                tab.setAttribute('aria-selected', active ? 'true' : 'false');
+                tab.tabIndex = active ? 0 : -1;
+            });
+
+            let visibleCount = 0;
+            cards.forEach((card) => {
+                const kind = card.dataset.kind;
+                const visible = activeFilter === 'all' || kind === activeFilter;
+                card.hidden = !visible;
+                if (visible) visibleCount += 1;
+            });
+
+            countEl.textContent = `${visibleCount}件表示`;
+            emptyEl.hidden = visibleCount !== 0;
+
+            const url = new URL(window.location.href);
+            url.hash = activeFilter === 'all' ? '' : `tab-${activeFilter}`;
+            history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+        }
+
+        function filterFromHash() {
+            const raw = window.location.hash || '';
+            if (!raw.startsWith('#tab-')) return 'all';
+            return raw.slice(5) || 'all';
+        }
+
+        tabs.forEach((tab, index) => {
+            tab.addEventListener('click', () => {
+                applyFilter(tab.dataset.filter || 'all');
+            });
+
+            tab.addEventListener('keydown', (event) => {
+                if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+                event.preventDefault();
+
+                const delta = event.key === 'ArrowRight' ? 1 : -1;
+                const nextIndex = (index + delta + tabs.length) % tabs.length;
+                tabs[nextIndex].focus();
+                applyFilter(tabs[nextIndex].dataset.filter || 'all');
+            });
+        });
+
+        window.addEventListener('hashchange', () => {
+            applyFilter(filterFromHash());
+        });
+
+        applyFilter(filterFromHash());
+    })();
+</script>

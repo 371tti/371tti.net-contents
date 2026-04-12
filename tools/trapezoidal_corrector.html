@@ -1,0 +1,2314 @@
+---
+title: Trapezoidal Corrector
+description: 4点指定で画像の台形パースを補正するツール
+authors:
+- 371tti
+tags:
+- tools
+- image-processing
+- perspective
+is_complete: true
+---
+
+<style>
+    .tool-lead {
+        margin-left: 0;
+        margin-top: 3mm;
+        color: var(--color-text-0);
+    }
+
+    .trapezoid-tool {
+        display: grid;
+        gap: 6mm;
+        margin-top: 4mm;
+        --editor-viewer-height: clamp(220px, 54vh, 560px);
+        --result-viewer-height: clamp(200px, 40vh, 430px);
+    }
+
+    .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 3mm;
+        align-items: center;
+    }
+
+    .toolbar label.file {
+        position: relative;
+        overflow: hidden;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .toolbar input[type="file"] {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        cursor: pointer;
+    }
+
+    .toolbar button,
+    .toolbar .file,
+    .result-actions button,
+    .nudge-grid button {
+        appearance: none;
+        border: 1px solid var(--color-bg-2);
+        background: var(--color-bg-1);
+        color: var(--color-text-0);
+        padding: 2mm 5mm;
+        margin: 0;
+        font: inherit;
+        cursor: pointer;
+        text-decoration: none;
+    }
+
+    .toolbar button:hover,
+    .toolbar .file:hover,
+    .result-actions button:hover,
+    .nudge-grid button:hover {
+        background: var(--color-accent-0);
+    }
+
+    .toolbar button:disabled,
+    .result-actions button:disabled,
+    .nudge-grid button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+    }
+
+    .toolbar button:disabled:hover,
+    .result-actions button:disabled:hover,
+    .nudge-grid button:disabled:hover {
+        background: var(--color-bg-1);
+    }
+
+    input[type="number"] {
+        width: 78px;
+    }
+
+    .status {
+        margin-left: auto;
+        color: var(--color-text-0);
+        font-size: 0.9rem;
+        white-space: nowrap;
+    }
+
+    .grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
+        gap: 6mm;
+        min-height: 0;
+        align-items: start;
+    }
+
+    .panel {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        gap: 3mm;
+        min-width: 0;
+    }
+
+    .panel-header {
+        font-size: 0.9rem;
+        color: var(--color-text-0);
+        border-bottom: 1px solid var(--color-bg-2);
+        padding-bottom: 3mm;
+    }
+
+    .panel-body {
+        min-height: 0;
+        display: grid;
+        gap: 3mm;
+    }
+
+    .panel-editor .panel-body {
+        grid-template-rows: var(--editor-viewer-height) auto auto;
+    }
+
+    .panel-result .panel-body {
+        grid-template-rows: auto var(--result-viewer-height) auto auto;
+    }
+
+    .editor-controls {
+        display: grid;
+        gap: 3mm;
+    }
+
+    .result-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 3mm;
+    }
+
+    .canvas-wrap,
+    .result-wrap {
+        min-height: 0;
+        height: 100%;
+        border: 1px dashed var(--color-bg-2);
+        background: var(--color-bg-0);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .result-wrap.empty::before,
+    .canvas-wrap.empty::before {
+        content: attr(data-empty);
+        color: var(--color-text-0);
+        font-size: 0.9rem;
+    }
+
+    canvas {
+        display: block;
+        max-width: 100%;
+        max-height: 100%;
+        width: auto;
+        height: auto;
+        touch-action: none;
+    }
+
+    .hint {
+        font-size: 0.9rem;
+        color: var(--color-text-0);
+        line-height: 1.6;
+    }
+
+    .meta {
+        display: flex;
+        gap: 3mm;
+        flex-wrap: wrap;
+        font-size: 0.85rem;
+        color: var(--color-text-0);
+    }
+
+    .controls {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 3mm;
+    }
+
+    .control-card {
+        border: 1px solid var(--color-bg-2);
+        padding: 3mm;
+        display: flex;
+        flex-direction: column;
+        gap: 3mm;
+        min-height: 0;
+    }
+
+    .control-title {
+        font-size: 0.85rem;
+        color: var(--color-text-0);
+    }
+
+    .row {
+        display: flex;
+        align-items: center;
+        gap: 2mm;
+        flex-wrap: wrap;
+    }
+
+    .row label.inline {
+        display: inline-flex;
+        align-items: center;
+        gap: 1.5mm;
+    }
+
+    .nudge-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 50px);
+        grid-template-rows: repeat(3, 50px);
+        gap: 5px;
+        width: fit-content;
+    }
+
+    .nudge-grid button {
+        padding: 0;
+        min-width: 50px;
+        min-height: 50px;
+    }
+
+    .nudge-grid .empty {
+        border: none;
+        background: transparent;
+        cursor: default;
+    }
+
+    @media (max-width: 1200px) {
+        .grid {
+            grid-template-columns: 1fr;
+        }
+
+        .panel-editor .panel-body {
+            grid-template-rows: minmax(220px, 52vh) auto auto;
+        }
+
+        .panel-result .panel-body {
+            grid-template-rows: auto minmax(200px, 36vh) auto auto;
+        }
+
+        .status {
+            margin-left: 0;
+            width: 100%;
+        }
+    }
+
+    @media (max-width: 700px) {
+        .toolbar {
+            gap: 2mm;
+        }
+
+        .result-actions button {
+            flex: 1 1 42%;
+        }
+
+        .nudge-grid {
+            grid-template-columns: repeat(3, 54px);
+            grid-template-rows: repeat(3, 54px);
+        }
+
+        .nudge-grid button {
+            min-width: 54px;
+            min-height: 54px;
+        }
+    }
+</style>
+
+<main>
+    <h1>Trapezoidal Corrector</h1>
+    <p class="tool-lead">画像の4点を指定して、紙面のパースを補正します。</p>
+
+    <div class="trapezoid-tool">
+        <div class="toolbar box">
+            <label class="file">
+                画像を開く
+                <input id="fileInput" type="file" accept="image/*" />
+            </label>
+            <button id="analyzeBtn" disabled>エッジ解析</button>
+            <button id="autoSnapBtn" disabled>4点を近傍へ吸着</button>
+            <button id="resetBtn" disabled>4点をリセット</button>
+            <button id="correctBtn" disabled>補正実行</button>
+            <div id="status" class="status">画像を読み込んでください</div>
+        </div>
+
+        <div class="grid">
+            <section class="panel box panel-editor">
+                <div class="panel-header">補正範囲を4点で指定</div>
+                <div class="panel-body">
+                    <div id="editorWrap" class="canvas-wrap empty" data-empty="ここに読み込んだ画像が表示されます">
+                        <canvas id="editorCanvas"></canvas>
+                    </div>
+
+                    <div class="editor-controls">
+                        <div class="control-card">
+                            <div class="control-title">微調整</div>
+                            <div class="row">
+                                <label class="inline">対象
+                                    <select id="selectedHandleSelect">
+                                        <option value="0">TL</option>
+                                        <option value="1">TR</option>
+                                        <option value="2">BR</option>
+                                        <option value="3">BL</option>
+                                    </select>
+                                </label>
+                                <label class="inline">移動量 <input id="nudgeStepInput" type="number" min="1" max="100"
+                                        step="1" value="2" /></label>
+                            </div>
+
+                            <div class="nudge-grid">
+                                <div class="empty"></div>
+                                <button id="nudgeUpBtn" type="button">↑</button>
+                                <div class="empty"></div>
+
+                                <button id="nudgeLeftBtn" type="button">←</button>
+                                <button id="snapOneBtn" type="button">吸着</button>
+                                <button id="nudgeRightBtn" type="button">→</button>
+
+                                <div class="empty"></div>
+                                <button id="nudgeDownBtn" type="button">↓</button>
+                                <div class="empty"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="editorMeta" class="meta"></div>
+                </div>
+            </section>
+
+            <section class="panel box panel-result">
+                <div class="panel-header">補正結果と出力</div>
+                <div class="panel-body">
+                    <div class="controls">
+                        <div class="control-card">
+                            <div class="control-title">スナップ</div>
+                            <div class="row">
+                                <label class="inline"><input id="snapEnabled" type="checkbox" checked /> 有効</label>
+                                <label class="inline"><input id="showEdges" type="checkbox" checked /> エッジ表示</label>
+                                <label class="inline"><input id="showCorners" type="checkbox" checked /> 角表示</label>
+                            </div>
+                            <div class="row">
+                                <label class="inline">半径 <input id="snapRadiusInput" type="number" min="4" max="200"
+                                        step="1" value="28" /></label>
+                                <label class="inline">角優先 <input id="cornerBiasInput" type="number" min="1" max="64"
+                                        step="1" value="10" /></label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="resultWrap" class="result-wrap empty" data-empty="まだ補正結果はありません">
+                        <canvas id="resultCanvas"></canvas>
+                    </div>
+
+                    <div class="result-actions">
+                        <button id="downloadBtn" disabled>PNG保存</button>
+                        <button id="sendToEffectorBtn" disabled>Image Effectorへ渡す</button>
+                    </div>
+
+                    <div id="resultMeta" class="meta"></div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById("fileInput");
+        const analyzeBtn = document.getElementById("analyzeBtn");
+        const autoSnapBtn = document.getElementById("autoSnapBtn");
+        const resetBtn = document.getElementById("resetBtn");
+        const correctBtn = document.getElementById("correctBtn");
+        const downloadBtn = document.getElementById("downloadBtn");
+        const sendToEffectorBtn = document.getElementById("sendToEffectorBtn");
+
+        const statusEl = document.getElementById("status");
+        const editorWrap = document.getElementById("editorWrap");
+        const resultWrap = document.getElementById("resultWrap");
+        const editorMeta = document.getElementById("editorMeta");
+        const resultMeta = document.getElementById("resultMeta");
+
+        const snapEnabledInput = document.getElementById("snapEnabled");
+        const showEdgesInput = document.getElementById("showEdges");
+        const showCornersInput = document.getElementById("showCorners");
+        const snapRadiusInput = document.getElementById("snapRadiusInput");
+        const cornerBiasInput = document.getElementById("cornerBiasInput");
+
+        const selectedHandleSelect = document.getElementById("selectedHandleSelect");
+        const nudgeStepInput = document.getElementById("nudgeStepInput");
+        const nudgeUpBtn = document.getElementById("nudgeUpBtn");
+        const nudgeLeftBtn = document.getElementById("nudgeLeftBtn");
+        const nudgeRightBtn = document.getElementById("nudgeRightBtn");
+        const nudgeDownBtn = document.getElementById("nudgeDownBtn");
+        const snapOneBtn = document.getElementById("snapOneBtn");
+
+        const editorCanvas = document.getElementById("editorCanvas");
+        const resultCanvas = document.getElementById("resultCanvas");
+        const editorCtx = editorCanvas.getContext("2d");
+        const resultCtx = resultCanvas.getContext("2d");
+
+        const sourceCanvas = document.createElement("canvas");
+        const sourceCtx = sourceCanvas.getContext("2d", { willReadFrequently: true });
+        const previewSourceCanvas = document.createElement("canvas");
+        const previewSourceCtx = previewSourceCanvas.getContext("2d", { willReadFrequently: true });
+        const analysisCanvas = document.createElement("canvas");
+        const analysisCtx = analysisCanvas.getContext("2d", { willReadFrequently: true });
+
+        const labels = ["TL", "TR", "BR", "BL"];
+        const SOBEL_X = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
+        const SOBEL_Y = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
+        const HOUGH_THETA_KERNEL = [0.34, 0.76, 1.0, 0.76, 0.34];
+
+        const EDGE_COLOR = "rgba(0, 180, 255, 0.55)";
+        const LOCAL_CORNER_COLOR = "rgba(255, 150, 0, 0.7)";
+        const DOC_CORNER_COLOR = "rgba(255, 70, 0, 0.95)";
+        const DOC_LINE_COLOR = "rgba(255, 0, 80, 0.95)";
+        const CANDIDATE_LINE_COLOR = "rgba(255, 0, 80, 0.22)";
+
+        const IMAGE_EFFECTOR_TARGET_ORIGIN = "https://dev.371tti.net";
+        const IMAGE_EFFECTOR_TARGET_URL = `${IMAGE_EFFECTOR_TARGET_ORIGIN}/tools/image_effector.html?from=trapezoidal_corrector`;
+
+        let image = null;
+        let imageBitmapRef = null;
+        let scale = 1;
+        let naturalWidth = 0;
+        let naturalHeight = 0;
+
+        let points = [];
+        let activeHandle = -1;
+        let dragging = false;
+        let selectedHandle = 0;
+        let lastResultBlobUrl = null;
+        let lastRenderQuality = "none";
+        let sourceFileBaseName = "image";
+        let previewSourceScale = 1;
+        let previewSourcePixels = null;
+
+        let realtimePendingQuality = null;
+        let realtimeQueueScheduled = false;
+        let realtimeRendering = false;
+
+        let analysisData = null;
+
+        function setStatus(text) {
+            statusEl.textContent = text;
+        }
+
+        function normalizeFileStem(fileName) {
+            if (typeof fileName !== "string") return "image";
+
+            const noExt = fileName.replace(/\.[^.]+$/, "").trim();
+            const sanitized = noExt
+                .replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_")
+                .replace(/\s+/g, "_")
+                .replace(/_+/g, "_")
+                .replace(/^[_\.]+|[_\.]+$/g, "");
+
+            return sanitized || "image";
+        }
+
+        function buildCorrectedFileName(suffix = "trapezoid_corrected") {
+            const safeSuffix = normalizeFileStem(String(suffix || "corrected"));
+            return `${sourceFileBaseName}_${safeSuffix}.png`;
+        }
+
+        function clamp(value, min, max) {
+            return Math.min(max, Math.max(min, value));
+        }
+
+        function dist(a, b) {
+            return Math.hypot(a.x - b.x, a.y - b.y);
+        }
+
+        function normalizeTheta(theta) {
+            let t = theta % Math.PI;
+            if (t < 0) t += Math.PI;
+            return t;
+        }
+
+        function angleDiffPi(a, b) {
+            const d = Math.abs(normalizeTheta(a) - normalizeTheta(b));
+            return Math.min(d, Math.PI - d);
+        }
+
+        function defaultPointsForImage(w, h) {
+            const mx = w * 0.12;
+            const my = h * 0.12;
+            return [
+                { x: mx, y: my },
+                { x: w - mx, y: my },
+                { x: w - mx, y: h - my },
+                { x: mx, y: h - my },
+            ];
+        }
+
+        function setSelectedHandle(index) {
+            selectedHandle = clamp(index, 0, 3);
+            selectedHandleSelect.value = String(selectedHandle);
+            redrawEditor();
+        }
+
+        function updateEditorMeta() {
+            if (!image) {
+                editorMeta.innerHTML = "";
+                return;
+            }
+
+            const top = dist(points[0], points[1]).toFixed(0);
+            const right = dist(points[1], points[2]).toFixed(0);
+            const bottom = dist(points[2], points[3]).toFixed(0);
+            const left = dist(points[3], points[0]).toFixed(0);
+            const selected = points[selectedHandle];
+
+            const edgeCount = analysisData?.edgePoints?.length ?? 0;
+            const localCornerCount = analysisData?.localCorners?.length ?? 0;
+            const docCornerCount = analysisData?.docCorners?.length ?? 0;
+            const lineCount = analysisData?.docLines?.length ?? 0;
+            const candidateLineCount = analysisData?.candidateLines?.length ?? 0;
+
+            editorMeta.innerHTML = `
+        <span>元画像: ${naturalWidth} × ${naturalHeight}px</span>
+        <span>選択: ${labels[selectedHandle]} (${selected.x.toFixed(1)}, ${selected.y.toFixed(1)})</span>
+        <span>上辺: ${top}px</span>
+        <span>右辺: ${right}px</span>
+        <span>下辺: ${bottom}px</span>
+        <span>左辺: ${left}px</span>
+        <span>候補線: ${candidateLineCount}</span>
+        <span>文書線: ${lineCount}</span>
+        <span>推定四隅: ${docCornerCount}</span>
+        <span>局所角: ${localCornerCount}</span>
+        <span>エッジ候補: ${edgeCount}</span>
+      `;
+        }
+
+        function updateResultMeta(w = 0, h = 0) {
+            resultMeta.innerHTML = w && h ? `<span>出力: ${w} × ${h}px</span>` : "";
+        }
+
+        function fitCanvasToImage() {
+            if (!image) return;
+            const maxW = Math.max(200, editorWrap.clientWidth - 4);
+            const maxH = Math.max(220, editorWrap.clientHeight - 4);
+            scale = Math.min(maxW / naturalWidth, maxH / naturalHeight, 1);
+            editorCanvas.width = Math.max(1, Math.round(naturalWidth * scale));
+            editorCanvas.height = Math.max(1, Math.round(naturalHeight * scale));
+        }
+
+        function rebuildPreviewSource() {
+            if (!image) return;
+
+            const maxPreviewEdge = 1600;
+            previewSourceScale = Math.min(1, maxPreviewEdge / Math.max(naturalWidth, naturalHeight));
+
+            const pw = Math.max(1, Math.round(naturalWidth * previewSourceScale));
+            const ph = Math.max(1, Math.round(naturalHeight * previewSourceScale));
+
+            previewSourceCanvas.width = pw;
+            previewSourceCanvas.height = ph;
+            previewSourceCtx.clearRect(0, 0, pw, ph);
+            previewSourceCtx.drawImage(sourceCanvas, 0, 0, pw, ph);
+
+            previewSourcePixels = previewSourceCtx.getImageData(0, 0, pw, ph).data;
+        }
+
+        function getRealtimeMaxEdge() {
+            const baseWidth = Math.max(editorWrap.clientWidth, 460);
+            const baseHeight = Math.max(editorWrap.clientHeight, 320);
+            const reference = Math.max(baseWidth, baseHeight * 1.25);
+            const deviceScaled = Math.round(reference * Math.min(window.devicePixelRatio || 1, 1.5));
+            return clamp(deviceScaled + 180, 720, 1320);
+        }
+
+        function queueRealtimeCorrection(highQuality = false) {
+            if (!image) return;
+
+            if (highQuality) {
+                realtimePendingQuality = "high";
+            } else if (!realtimePendingQuality) {
+                realtimePendingQuality = "preview";
+            }
+
+            if (realtimeQueueScheduled) return;
+            realtimeQueueScheduled = true;
+
+            requestAnimationFrame(() => {
+                realtimeQueueScheduled = false;
+                runRealtimeCorrectionQueue();
+            });
+        }
+
+        async function runRealtimeCorrectionQueue() {
+            if (realtimeRendering || !realtimePendingQuality) return;
+
+            realtimeRendering = true;
+            try {
+                while (realtimePendingQuality) {
+                    const quality = realtimePendingQuality;
+                    realtimePendingQuality = null;
+
+                    if (quality === "preview") {
+                        await new Promise(resolve => requestAnimationFrame(resolve));
+                    }
+
+                    await correctPerspective({ quality, interactive: true, updateStatus: false });
+                }
+            } catch (error) {
+                console.error(error);
+            } finally {
+                realtimeRendering = false;
+                if (realtimePendingQuality) {
+                    runRealtimeCorrectionQueue();
+                }
+            }
+        }
+
+        function boxBlur3x3(src, width, height) {
+            const tmp = new Float32Array(width * height);
+            const out = new Float32Array(width * height);
+
+            for (let y = 0; y < height; y++) {
+                const row = y * width;
+                for (let x = 0; x < width; x++) {
+                    const xm1 = row + Math.max(0, x - 1);
+                    const x0 = row + x;
+                    const xp1 = row + Math.min(width - 1, x + 1);
+                    tmp[x0] = (src[xm1] + src[x0] + src[xp1]) / 3;
+                }
+            }
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const ym1 = Math.max(0, y - 1) * width + x;
+                    const y0 = y * width + x;
+                    const yp1 = Math.min(height - 1, y + 1) * width + x;
+                    out[y0] = (tmp[ym1] + tmp[y0] + tmp[yp1]) / 3;
+                }
+            }
+
+            return out;
+        }
+
+        function convolveAt(data, width, x, y, kernel) {
+            let sum = 0;
+            let ki = 0;
+            for (let oy = -1; oy <= 1; oy++) {
+                const row = (y + oy) * width;
+                for (let ox = -1; ox <= 1; ox++) {
+                    sum += data[row + x + ox] * kernel[ki++];
+                }
+            }
+            return sum;
+        }
+
+        function isGradientLocalMaximum(gx, gy, mag, width, x, y) {
+            const idx = y * width + x;
+            const angle = Math.atan2(gy[idx], gx[idx]) * 180 / Math.PI;
+            const a = ((angle % 180) + 180) % 180;
+            const m = mag[idx];
+
+            let m1 = 0;
+            let m2 = 0;
+
+            if (a < 22.5 || a >= 157.5) {
+                m1 = mag[idx - 1];
+                m2 = mag[idx + 1];
+            } else if (a < 67.5) {
+                m1 = mag[idx - width + 1];
+                m2 = mag[idx + width - 1];
+            } else if (a < 112.5) {
+                m1 = mag[idx - width];
+                m2 = mag[idx + width];
+            } else {
+                m1 = mag[idx - width - 1];
+                m2 = mag[idx + width + 1];
+            }
+
+            return m >= m1 && m >= m2;
+        }
+
+        function isLocalMaximum(arr, width, height, x, y, value) {
+            for (let oy = -1; oy <= 1; oy++) {
+                const ny = y + oy;
+                if (ny <= 0 || ny >= height - 1) continue;
+                for (let ox = -1; ox <= 1; ox++) {
+                    const nx = x + ox;
+                    if (nx <= 0 || nx >= width - 1) continue;
+                    if (ox === 0 && oy === 0) continue;
+                    if (arr[ny * width + nx] > value) return false;
+                }
+            }
+            return true;
+        }
+
+        function circularMeanTheta(lines) {
+            let sx = 0;
+            let sy = 0;
+            for (const line of lines) {
+                const w = line.score;
+                sx += Math.cos(2 * line.theta) * w;
+                sy += Math.sin(2 * line.theta) * w;
+            }
+            return 0.5 * Math.atan2(sy, sx);
+        }
+
+        function buildOrientationGroups(lines) {
+            const groups = [];
+            const threshold = Math.PI / 9;
+
+            for (const line of lines) {
+                let target = null;
+                let bestDiff = Infinity;
+
+                for (const group of groups) {
+                    const diff = angleDiffPi(line.theta, group.theta);
+                    if (diff < threshold && diff < bestDiff) {
+                        bestDiff = diff;
+                        target = group;
+                    }
+                }
+
+                if (!target) {
+                    groups.push({ theta: line.theta, lines: [line], score: line.score });
+                } else {
+                    target.lines.push(line);
+                    target.score += line.score;
+                    target.theta = normalizeTheta(circularMeanTheta(target.lines));
+                }
+            }
+
+            return groups.sort((a, b) => b.score - a.score);
+        }
+
+        function pickGroupPair(groups) {
+            let best = null;
+            let bestValue = -Infinity;
+
+            for (let i = 0; i < groups.length; i++) {
+                for (let j = i + 1; j < groups.length; j++) {
+                    const diff = angleDiffPi(groups[i].theta, groups[j].theta);
+                    const perpendicularity = 1 - Math.min(1, Math.abs(diff - Math.PI / 2) / (Math.PI / 4));
+                    if (perpendicularity <= 0) continue;
+
+                    const value = (groups[i].score + groups[j].score) * (0.3 + 0.7 * perpendicularity);
+                    if (value > bestValue) {
+                        bestValue = value;
+                        best = [groups[i], groups[j]];
+                    }
+                }
+            }
+
+            return best;
+        }
+
+        function intersectLines(lineA, lineB) {
+            const c1 = Math.cos(lineA.theta);
+            const s1 = Math.sin(lineA.theta);
+            const c2 = Math.cos(lineB.theta);
+            const s2 = Math.sin(lineB.theta);
+            const det = c1 * s2 - s1 * c2;
+
+            if (Math.abs(det) < 1e-6) return null;
+
+            const x = (lineA.rho * s2 - lineB.rho * s1) / det;
+            const y = (-lineA.rho * c2 + lineB.rho * c1) / det;
+            return { x, y };
+        }
+
+        function projectLineToRect(line, width, height) {
+            const c = Math.cos(line.theta);
+            const s = Math.sin(line.theta);
+            const candidates = [];
+            const maxX = width - 1;
+            const maxY = height - 1;
+
+            if (Math.abs(s) > 1e-6) {
+                let y = (line.rho - 0 * c) / s;
+                if (y >= 0 && y <= maxY) candidates.push({ x: 0, y });
+                y = (line.rho - maxX * c) / s;
+                if (y >= 0 && y <= maxY) candidates.push({ x: maxX, y });
+            }
+
+            if (Math.abs(c) > 1e-6) {
+                let x = (line.rho - 0 * s) / c;
+                if (x >= 0 && x <= maxX) candidates.push({ x, y: 0 });
+                x = (line.rho - maxY * s) / c;
+                if (x >= 0 && x <= maxX) candidates.push({ x, y: maxY });
+            }
+
+            const unique = [];
+            for (const pt of candidates) {
+                if (!unique.some(u => Math.hypot(u.x - pt.x, u.y - pt.y) < 1.5)) {
+                    unique.push(pt);
+                }
+            }
+
+            return unique.length >= 2 ? [unique[0], unique[1]] : null;
+        }
+
+        function orderQuad(corners) {
+            if (corners.length !== 4) return corners;
+            const tl = corners.reduce((best, p) => (p.x + p.y < best.x + best.y ? p : best), corners[0]);
+            const br = corners.reduce((best, p) => (p.x + p.y > best.x + best.y ? p : best), corners[0]);
+            const tr = corners.reduce((best, p) => (p.x - p.y > best.x - best.y ? p : best), corners[0]);
+            const bl = corners.reduce((best, p) => (p.y - p.x > best.y - best.x ? p : best), corners[0]);
+            return [tl, tr, br, bl];
+        }
+
+        function polygonArea(points) {
+            let sum = 0;
+            for (let i = 0; i < points.length; i++) {
+                const a = points[i];
+                const b = points[(i + 1) % points.length];
+                sum += a.x * b.y - b.x * a.y;
+            }
+            return Math.abs(sum) * 0.5;
+        }
+
+        function isConvexQuad(points) {
+            if (points.length !== 4) return false;
+
+            let sign = 0;
+            for (let i = 0; i < 4; i++) {
+                const a = points[i];
+                const b = points[(i + 1) % 4];
+                const c = points[(i + 2) % 4];
+                const abx = b.x - a.x;
+                const aby = b.y - a.y;
+                const bcx = c.x - b.x;
+                const bcy = c.y - b.y;
+                const cross = abx * bcy - aby * bcx;
+
+                if (Math.abs(cross) < 1e-6) return false;
+
+                const s = Math.sign(cross);
+                if (sign === 0) {
+                    sign = s;
+                } else if (sign !== s) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        function quadRightAngleScore(points) {
+            let sum = 0;
+
+            for (let i = 0; i < 4; i++) {
+                const prev = points[(i + 3) % 4];
+                const cur = points[i];
+                const next = points[(i + 1) % 4];
+
+                let ax = prev.x - cur.x;
+                let ay = prev.y - cur.y;
+                let bx = next.x - cur.x;
+                let by = next.y - cur.y;
+
+                const al = Math.hypot(ax, ay);
+                const bl = Math.hypot(bx, by);
+                if (al < 1e-6 || bl < 1e-6) return 0;
+
+                ax /= al;
+                ay /= al;
+                bx /= bl;
+                by /= bl;
+
+                const cos = Math.abs(ax * bx + ay * by);
+                sum += Math.max(0, 1 - cos);
+            }
+
+            return sum / 4;
+        }
+
+        function nearestCornerSupport(point, localCorners, radius) {
+            let best = 0;
+            const radiusSq = radius * radius;
+
+            for (const corner of localCorners) {
+                const dx = corner.x - point.x;
+                const dy = corner.y - point.y;
+                const d2 = dx * dx + dy * dy;
+                if (d2 > radiusSq) continue;
+
+                const d = Math.sqrt(d2);
+                const score = corner.score / (1 + d / radius);
+                if (score > best) best = score;
+            }
+
+            return best;
+        }
+
+        function pointLineDistance(point, line) {
+            return Math.abs(
+                point.x * Math.cos(line.theta) +
+                point.y * Math.sin(line.theta) -
+                line.rho
+            );
+        }
+
+        function averageLineFitError(points, lines) {
+            const [tl, tr, br, bl] = points;
+            const [top, right, bottom, left] = lines;
+
+            const eTop = (pointLineDistance(tl, top) + pointLineDistance(tr, top)) * 0.5;
+            const eRight = (pointLineDistance(tr, right) + pointLineDistance(br, right)) * 0.5;
+            const eBottom = (pointLineDistance(br, bottom) + pointLineDistance(bl, bottom)) * 0.5;
+            const eLeft = (pointLineDistance(bl, left) + pointLineDistance(tl, left)) * 0.5;
+
+            return (eTop + eRight + eBottom + eLeft) / 4;
+        }
+
+        function pickDistinctStrongLines(group, maxCount, minRhoGap) {
+            const out = [];
+            const sorted = [...group.lines].sort((a, b) => b.score - a.score);
+
+            for (const line of sorted) {
+                if (out.every(x => Math.abs(x.rho - line.rho) >= minRhoGap)) {
+                    out.push(line);
+                    if (out.length >= maxCount) break;
+                }
+            }
+
+            return out;
+        }
+
+        function chooseBestDocumentQuad(groupA, groupB, localCorners, width, height, invScale) {
+            const minGap = 28 * invScale;
+            const linesA = pickDistinctStrongLines(groupA, 6, minGap);
+            const linesB = pickDistinctStrongLines(groupB, 6, minGap);
+
+            if (linesA.length < 2 || linesB.length < 2) {
+                return null;
+            }
+
+            const expandedMinX = -width * 0.18;
+            const expandedMaxX = width * 1.18;
+            const expandedMinY = -height * 0.18;
+            const expandedMaxY = height * 1.18;
+            const imageArea = width * height;
+
+            let best = null;
+            let bestScore = -Infinity;
+
+            for (let i = 0; i < linesA.length; i++) {
+                for (let j = i + 1; j < linesA.length; j++) {
+                    const a1 = linesA[i];
+                    const a2 = linesA[j];
+
+                    if (Math.abs(a1.rho - a2.rho) < minGap) continue;
+
+                    for (let k = 0; k < linesB.length; k++) {
+                        for (let l = k + 1; l < linesB.length; l++) {
+                            const b1 = linesB[k];
+                            const b2 = linesB[l];
+
+                            if (Math.abs(b1.rho - b2.rho) < minGap) continue;
+
+                            const raw = [
+                                intersectLines(a1, b1),
+                                intersectLines(a2, b1),
+                                intersectLines(a2, b2),
+                                intersectLines(a1, b2),
+                            ];
+
+                            if (raw.some(v => !v)) continue;
+
+                            const quad = orderQuad(raw);
+
+                            if (!isConvexQuad(quad)) continue;
+
+                            const inside = quad.every(pt =>
+                                pt.x >= expandedMinX &&
+                                pt.x <= expandedMaxX &&
+                                pt.y >= expandedMinY &&
+                                pt.y <= expandedMaxY
+                            );
+                            if (!inside) continue;
+
+                            const area = polygonArea(quad);
+                            if (area < imageArea * 0.04) continue;
+
+                            const angleScore = quadRightAngleScore(quad);
+                            if (angleScore < 0.55) continue;
+
+                            const cornerRadius = 42 * invScale;
+                            const cornerSupport =
+                                quad.reduce((s, pt) => s + nearestCornerSupport(pt, localCorners, cornerRadius), 0) / 4;
+
+                            const lineFitError = averageLineFitError(quad, [a1, b1, a2, b2]);
+                            const lineFitScore = 1 / (1 + lineFitError / (8 * invScale));
+
+                            const lineStrength = Math.log1p(a1.score + a2.score + b1.score + b2.score);
+                            const areaScore = Math.min(1.6, area / (imageArea * 0.55));
+
+                            const score =
+                                areaScore * 3.2 +
+                                angleScore * 2.8 +
+                                cornerSupport * 2.2 +
+                                lineFitScore * 2.0 +
+                                lineStrength * 0.35;
+
+                            if (score > bestScore) {
+                                bestScore = score;
+                                best = {
+                                    score,
+                                    corners: quad,
+                                    lines: [a1, b1, a2, b2],
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+
+            return best;
+        }
+
+        function scoreHoughLineSupport(line, edgePoints, diag, distanceThreshold = 2.6, sampleStep = 1) {
+            if (!edgePoints.length) return 0;
+
+            const c = Math.cos(line.theta);
+            const s = Math.sin(line.theta);
+            const tx = -s;
+            const ty = c;
+
+            let sampled = 0;
+            let hits = 0;
+            let minProj = Infinity;
+            let maxProj = -Infinity;
+            let distanceSum = 0;
+
+            for (let i = 0; i < edgePoints.length; i += sampleStep) {
+                const pt = edgePoints[i];
+                sampled++;
+
+                const d = Math.abs(pt.x * c + pt.y * s - line.rho);
+                if (d > distanceThreshold) continue;
+
+                hits++;
+                distanceSum += d;
+
+                const proj = pt.x * tx + pt.y * ty;
+                if (proj < minProj) minProj = proj;
+                if (proj > maxProj) maxProj = proj;
+            }
+
+            if (!hits || !sampled) return 0;
+
+            const hitRatio = hits / sampled;
+            const span = maxProj - minProj;
+            const spanScore = Math.min(1, span / Math.max(1, diag * 0.62));
+            const avgDistance = distanceSum / hits;
+            const tightness = 1 / (1 + avgDistance / Math.max(0.7, distanceThreshold * 0.6));
+
+            return hitRatio * 0.52 + spanScore * 0.30 + tightness * 0.18;
+        }
+
+        function refineHoughPeak(accumulator, thetaBins, rhoBins, thetaBin, rhoBin) {
+            let sum = 0;
+            let thetaWeighted = 0;
+            let rhoWeighted = 0;
+            let peakValue = accumulator[thetaBin * rhoBins + rhoBin] || 0;
+
+            for (let dt = -2; dt <= 2; dt++) {
+                const t = thetaBin + dt;
+                if (t < 0 || t >= thetaBins) continue;
+
+                for (let dr = -8; dr <= 8; dr++) {
+                    const r = rhoBin + dr;
+                    if (r < 0 || r >= rhoBins) continue;
+
+                    const value = accumulator[t * rhoBins + r];
+                    if (value <= 0) continue;
+
+                    sum += value;
+                    thetaWeighted += value * t;
+                    rhoWeighted += value * r;
+                    if (value > peakValue) peakValue = value;
+                }
+            }
+
+            if (sum <= 0) {
+                return { thetaBin, rhoBin, score: peakValue };
+            }
+
+            return {
+                thetaBin: thetaWeighted / sum,
+                rhoBin: rhoWeighted / sum,
+                score: peakValue,
+            };
+        }
+
+        function extractHoughPeaks(accumulator, thetaBins, rhoBins, maxPeaks) {
+            const peaks = [];
+            const used = new Uint8Array(accumulator.length);
+            let firstPeak = 0;
+
+            for (let peakIndex = 0; peakIndex < maxPeaks; peakIndex++) {
+                let bestValue = 0;
+                let bestIndex = -1;
+
+                for (let i = 0; i < accumulator.length; i++) {
+                    if (used[i]) continue;
+                    const value = accumulator[i];
+                    if (value > bestValue) {
+                        bestValue = value;
+                        bestIndex = i;
+                    }
+                }
+
+                if (bestIndex === -1 || bestValue <= 0) break;
+                if (peakIndex === 0) firstPeak = bestValue;
+                if (peakIndex > 0 && bestValue < firstPeak * 0.30) break;
+
+                const thetaBin = Math.floor(bestIndex / rhoBins);
+                const rhoBin = bestIndex % rhoBins;
+
+                const refined = refineHoughPeak(accumulator, thetaBins, rhoBins, thetaBin, rhoBin);
+                peaks.push(refined);
+
+                const centerTheta = Math.round(refined.thetaBin);
+                const centerRho = Math.round(refined.rhoBin);
+
+                for (let dt = -4; dt <= 4; dt++) {
+                    const t = centerTheta + dt;
+                    if (t < 0 || t >= thetaBins) continue;
+                    for (let dr = -18; dr <= 18; dr++) {
+                        const r = centerRho + dr;
+                        if (r < 0 || r >= rhoBins) continue;
+                        used[t * rhoBins + r] = 1;
+                    }
+                }
+            }
+
+            return peaks;
+        }
+
+        function refineCornerNear(point, localCorners, radius) {
+            let best = null;
+            let bestScore = -Infinity;
+            const radiusSq = radius * radius;
+
+            for (const corner of localCorners) {
+                const dx = corner.x - point.x;
+                const dy = corner.y - point.y;
+                const d2 = dx * dx + dy * dy;
+                if (d2 > radiusSq) continue;
+
+                const score = corner.score / (1 + d2 * 0.04);
+                if (score > bestScore) {
+                    bestScore = score;
+                    best = corner;
+                }
+            }
+
+            return best ? { x: best.x, y: best.y, score: best.score } : point;
+        }
+
+        function drawAnalysisOverlay() {
+            if (!analysisData) return;
+
+            if (showEdgesInput.checked) {
+                editorCtx.save();
+
+                editorCtx.strokeStyle = EDGE_COLOR;
+                editorCtx.lineWidth = 1;
+                const step = analysisData.overlayStride;
+                for (let i = 0; i < analysisData.edgePoints.length; i += step) {
+                    const pt = analysisData.edgePoints[i];
+                    editorCtx.beginPath();
+                    editorCtx.moveTo(pt.x * scale - 1, pt.y * scale);
+                    editorCtx.lineTo(pt.x * scale + 1, pt.y * scale);
+                    editorCtx.moveTo(pt.x * scale, pt.y * scale - 1);
+                    editorCtx.lineTo(pt.x * scale, pt.y * scale + 1);
+                    editorCtx.stroke();
+                }
+
+                if (analysisData.candidateLines?.length) {
+                    editorCtx.strokeStyle = CANDIDATE_LINE_COLOR;
+                    editorCtx.lineWidth = 1.25;
+
+                    for (const line of analysisData.candidateLines) {
+                        const seg = projectLineToRect(line, naturalWidth, naturalHeight);
+                        if (!seg) continue;
+                        editorCtx.beginPath();
+                        editorCtx.moveTo(seg[0].x * scale, seg[0].y * scale);
+                        editorCtx.lineTo(seg[1].x * scale, seg[1].y * scale);
+                        editorCtx.stroke();
+                    }
+                }
+
+                if (analysisData.docLines?.length) {
+                    editorCtx.strokeStyle = DOC_LINE_COLOR;
+                    editorCtx.lineWidth = 2.5;
+
+                    for (const line of analysisData.docLines) {
+                        const seg = projectLineToRect(line, naturalWidth, naturalHeight);
+                        if (!seg) continue;
+                        editorCtx.beginPath();
+                        editorCtx.moveTo(seg[0].x * scale, seg[0].y * scale);
+                        editorCtx.lineTo(seg[1].x * scale, seg[1].y * scale);
+                        editorCtx.stroke();
+                    }
+                }
+
+                editorCtx.restore();
+            }
+
+            if (showCornersInput.checked) {
+                editorCtx.save();
+
+                editorCtx.fillStyle = LOCAL_CORNER_COLOR;
+                for (const pt of analysisData.localCorners ?? []) {
+                    editorCtx.beginPath();
+                    editorCtx.arc(pt.x * scale, pt.y * scale, 2.4, 0, Math.PI * 2);
+                    editorCtx.fill();
+                }
+
+                editorCtx.fillStyle = DOC_CORNER_COLOR;
+                for (const pt of analysisData.docCorners ?? []) {
+                    editorCtx.beginPath();
+                    editorCtx.arc(pt.x * scale, pt.y * scale, 4.8, 0, Math.PI * 2);
+                    editorCtx.fill();
+                }
+
+                editorCtx.restore();
+            }
+        }
+
+        function redrawEditor() {
+            editorCtx.clearRect(0, 0, editorCanvas.width, editorCanvas.height);
+            if (!image) return;
+
+            editorCtx.drawImage(image, 0, 0, editorCanvas.width, editorCanvas.height);
+            drawAnalysisOverlay();
+
+            const p = points.map(pt => ({ x: pt.x * scale, y: pt.y * scale }));
+
+            editorCtx.save();
+            editorCtx.fillStyle = "rgba(0, 0, 0, 0.22)";
+            editorCtx.beginPath();
+            editorCtx.rect(0, 0, editorCanvas.width, editorCanvas.height);
+            editorCtx.moveTo(p[0].x, p[0].y);
+            for (let i = 1; i < p.length; i++) {
+                editorCtx.lineTo(p[i].x, p[i].y);
+            }
+            editorCtx.closePath();
+            editorCtx.fill("evenodd");
+            editorCtx.restore();
+
+            editorCtx.save();
+            editorCtx.strokeStyle = "#ffffff";
+            editorCtx.lineWidth = 2;
+            editorCtx.beginPath();
+            editorCtx.moveTo(p[0].x, p[0].y);
+            for (let i = 1; i < p.length; i++) {
+                editorCtx.lineTo(p[i].x, p[i].y);
+            }
+            editorCtx.closePath();
+            editorCtx.stroke();
+            editorCtx.restore();
+
+            for (let i = 0; i < p.length; i++) {
+                const isActive = i === activeHandle;
+                const isSelected = i === selectedHandle;
+                const r = isActive ? 10 : isSelected ? 9 : 8;
+
+                editorCtx.beginPath();
+                editorCtx.fillStyle = isActive ? "#ffffff" : isSelected ? "#111111" : "rgba(17,17,17,0.85)";
+                editorCtx.strokeStyle = isActive ? "#111111" : "#ffffff";
+                editorCtx.lineWidth = isSelected ? 3 : 2;
+                editorCtx.arc(p[i].x, p[i].y, r, 0, Math.PI * 2);
+                editorCtx.fill();
+                editorCtx.stroke();
+
+                editorCtx.font = "12px system-ui, sans-serif";
+                editorCtx.textAlign = "center";
+                editorCtx.textBaseline = "bottom";
+                editorCtx.lineWidth = 3;
+                editorCtx.strokeStyle = "rgba(255,255,255,0.92)";
+                editorCtx.strokeText(labels[i], p[i].x, p[i].y - 12);
+                editorCtx.fillStyle = "#111111";
+                editorCtx.fillText(labels[i], p[i].x, p[i].y - 12);
+            }
+
+            updateEditorMeta();
+        }
+
+        function canvasPosToNatural(event) {
+            const rect = editorCanvas.getBoundingClientRect();
+            const x = (event.clientX - rect.left) * (editorCanvas.width / rect.width) / scale;
+            const y = (event.clientY - rect.top) * (editorCanvas.height / rect.height) / scale;
+            return {
+                x: clamp(x, 0, naturalWidth - 1),
+                y: clamp(y, 0, naturalHeight - 1),
+            };
+        }
+
+        function pickHandle(event) {
+            const rect = editorCanvas.getBoundingClientRect();
+            const x = (event.clientX - rect.left) * (editorCanvas.width / rect.width);
+            const y = (event.clientY - rect.top) * (editorCanvas.height / rect.height);
+
+            let minIndex = -1;
+            let minDistance = Infinity;
+
+            for (let i = 0; i < points.length; i++) {
+                const px = points[i].x * scale;
+                const py = points[i].y * scale;
+                const d = Math.hypot(px - x, py - y);
+                if (d < minDistance) {
+                    minDistance = d;
+                    minIndex = i;
+                }
+            }
+
+            return minDistance <= 20 ? minIndex : -1;
+        }
+
+        function getSnapRadiusNatural() {
+            return Math.max(4, Number(snapRadiusInput.value) || 28);
+        }
+
+        function getCornerBias() {
+            return Math.max(1, Number(cornerBiasInput.value) || 10);
+        }
+
+        function applySnapCandidate(point, preferCorner = true, handleIndex = null, force = false) {
+            if (!analysisData || (!snapEnabledInput.checked && !force)) {
+                return { ...point };
+            }
+
+            const radius = getSnapRadiusNatural();
+            const radiusSq = radius * radius;
+            const cornerBias = getCornerBias();
+
+            const snapCornerRadiusSq = radiusSq * 9;
+            if (preferCorner && analysisData.docCorners?.length === 4) {
+                const prioritized = Number.isInteger(handleIndex)
+                    ? [analysisData.docCorners[clamp(handleIndex, 0, 3)]]
+                    : analysisData.docCorners;
+
+                let bestCorner = null;
+                let bestCornerScore = Infinity;
+
+                for (const pt of prioritized) {
+                    if (!pt) continue;
+
+                    const dx = pt.x - point.x;
+                    const dy = pt.y - point.y;
+                    const d2 = dx * dx + dy * dy;
+                    if (d2 > snapCornerRadiusSq) continue;
+
+                    const score = d2 / ((pt.score || 1) * cornerBias * 16 + 1e-6);
+                    if (score < bestCornerScore) {
+                        bestCornerScore = score;
+                        bestCorner = pt;
+                    }
+                }
+
+                if (bestCorner) {
+                    return {
+                        x: clamp(bestCorner.x, 0, naturalWidth - 1),
+                        y: clamp(bestCorner.y, 0, naturalHeight - 1),
+                    };
+                }
+            }
+
+            let best = null;
+            let bestScore = Infinity;
+
+            if (preferCorner && analysisData.localCorners?.length) {
+                for (const pt of analysisData.localCorners) {
+                    const dx = pt.x - point.x;
+                    const dy = pt.y - point.y;
+                    const d2 = dx * dx + dy * dy;
+                    if (d2 > radiusSq) continue;
+
+                    const score = d2 / ((pt.score || 1) * cornerBias + 1e-6);
+                    if (score < bestScore) {
+                        bestScore = score;
+                        best = pt;
+                    }
+                }
+            }
+
+            if (analysisData.edgePoints?.length) {
+                for (const pt of analysisData.edgePoints) {
+                    const dx = pt.x - point.x;
+                    const dy = pt.y - point.y;
+                    const d2 = dx * dx + dy * dy;
+                    if (d2 > radiusSq) continue;
+
+                    const score = d2 / ((pt.score || 1) + 1e-6);
+                    if (score < bestScore) {
+                        bestScore = score;
+                        best = pt;
+                    }
+                }
+            }
+
+            return best
+                ? { x: clamp(best.x, 0, naturalWidth - 1), y: clamp(best.y, 0, naturalHeight - 1) }
+                : { ...point };
+        }
+
+        function onPointerDown(event) {
+            if (!image) return;
+            const index = pickHandle(event);
+            if (index === -1) return;
+
+            setSelectedHandle(index);
+            activeHandle = index;
+            dragging = true;
+            editorCanvas.setPointerCapture(event.pointerId);
+            redrawEditor();
+        }
+
+        function onPointerMove(event) {
+            if (!image) return;
+
+            if (dragging && activeHandle !== -1) {
+                let next = canvasPosToNatural(event);
+                if (!event.shiftKey) {
+                    next = applySnapCandidate(next, true, activeHandle);
+                }
+                points[activeHandle] = next;
+                redrawEditor();
+                queueRealtimeCorrection(false);
+                return;
+            }
+
+            const hover = pickHandle(event);
+            editorCanvas.style.cursor = hover === -1 ? "default" : "grab";
+        }
+
+        function endDrag(event) {
+            if (dragging) {
+                dragging = false;
+                if (editorCanvas.hasPointerCapture(event.pointerId)) {
+                    editorCanvas.releasePointerCapture(event.pointerId);
+                }
+            }
+            activeHandle = -1;
+            redrawEditor();
+            queueRealtimeCorrection(false);
+        }
+
+        function resetPoints() {
+            if (!image) return;
+            points = defaultPointsForImage(naturalWidth, naturalHeight);
+            setSelectedHandle(0);
+            redrawEditor();
+            queueRealtimeCorrection(false);
+            setStatus("4点を初期位置に戻しました");
+        }
+
+        function analyzeEdges() {
+            if (!image) return;
+
+            setStatus("エッジ解析中...");
+
+            const maxAnalysisEdge = 720;
+            const downScale = Math.min(maxAnalysisEdge / naturalWidth, maxAnalysisEdge / naturalHeight, 1);
+            const aw = Math.max(64, Math.round(naturalWidth * downScale));
+            const ah = Math.max(64, Math.round(naturalHeight * downScale));
+
+            analysisCanvas.width = aw;
+            analysisCanvas.height = ah;
+            analysisCtx.clearRect(0, 0, aw, ah);
+            analysisCtx.drawImage(image, 0, 0, aw, ah);
+
+            const { data } = analysisCtx.getImageData(0, 0, aw, ah);
+            const gray = new Float32Array(aw * ah);
+            for (let i = 0, j = 0; i < data.length; i += 4, j++) {
+                gray[j] = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+            }
+
+            const blurred = boxBlur3x3(gray, aw, ah);
+
+            const gx = new Float32Array(aw * ah);
+            const gy = new Float32Array(aw * ah);
+            const mag = new Float32Array(aw * ah);
+
+            let magMax = 0;
+            let magSum = 0;
+            let magCount = 0;
+
+            for (let y = 1; y < ah - 1; y++) {
+                for (let x = 1; x < aw - 1; x++) {
+                    const idx = y * aw + x;
+                    const sx = convolveAt(blurred, aw, x, y, SOBEL_X);
+                    const sy = convolveAt(blurred, aw, x, y, SOBEL_Y);
+
+                    gx[idx] = sx;
+                    gy[idx] = sy;
+
+                    const m = Math.hypot(sx, sy);
+                    mag[idx] = m;
+
+                    magSum += m;
+                    magCount++;
+                    if (m > magMax) magMax = m;
+                }
+            }
+
+            const magMean = magSum / Math.max(1, magCount);
+            const edgeThreshold = Math.max(magMean * 2.2, magMax * 0.18);
+            const invScale = 1 / downScale;
+
+            const strongEdges = [];
+            const edgePoints = [];
+            const edgeStride = Math.max(1, Math.round(Math.max(aw, ah) / 220));
+
+            for (let y = 2; y < ah - 2; y++) {
+                for (let x = 2; x < aw - 2; x++) {
+                    const idx = y * aw + x;
+                    const m = mag[idx];
+                    if (m < edgeThreshold) continue;
+                    if (!isGradientLocalMaximum(gx, gy, mag, aw, x, y)) continue;
+
+                    const candidate = {
+                        x,
+                        y,
+                        gx: gx[idx],
+                        gy: gy[idx],
+                        score: m / (magMax || 1),
+                    };
+
+                    strongEdges.push(candidate);
+
+                    if (((x + y) % edgeStride) === 0) {
+                        edgePoints.push({
+                            x: x * invScale,
+                            y: y * invScale,
+                            score: candidate.score,
+                        });
+                    }
+                }
+            }
+
+            const cornerResponse = new Float32Array(aw * ah);
+            let cornerMax = 0;
+
+            for (let y = 2; y < ah - 2; y++) {
+                for (let x = 2; x < aw - 2; x++) {
+                    let sxx = 0;
+                    let syy = 0;
+                    let sxy = 0;
+
+                    for (let oy = -1; oy <= 1; oy++) {
+                        for (let ox = -1; ox <= 1; ox++) {
+                            const idx = (y + oy) * aw + (x + ox);
+                            const ix = gx[idx];
+                            const iy = gy[idx];
+                            sxx += ix * ix;
+                            syy += iy * iy;
+                            sxy += ix * iy;
+                        }
+                    }
+
+                    const det = sxx * syy - sxy * sxy;
+                    const trace = sxx + syy;
+                    const response = det - 0.05 * trace * trace;
+
+                    cornerResponse[y * aw + x] = response;
+                    if (response > cornerMax) cornerMax = response;
+                }
+            }
+
+            const localCorners = [];
+            if (cornerMax > 0) {
+                const cornerThreshold = cornerMax * 0.08;
+                const cornerCell = Math.max(8, Math.round(Math.max(aw, ah) / 20));
+                const cornerBuckets = new Map();
+
+                for (let y = 3; y < ah - 3; y++) {
+                    for (let x = 3; x < aw - 3; x++) {
+                        const idx = y * aw + x;
+                        const response = cornerResponse[idx];
+                        if (response < cornerThreshold) continue;
+                        if (mag[idx] < edgeThreshold * 0.95) continue;
+                        if (!isLocalMaximum(cornerResponse, aw, ah, x, y, response)) continue;
+
+                        const bx = Math.floor(x / cornerCell);
+                        const by = Math.floor(y / cornerCell);
+                        const key = `${bx}:${by}`;
+
+                        const candidate = {
+                            x: x * invScale,
+                            y: y * invScale,
+                            score: response / cornerMax,
+                        };
+
+                        const current = cornerBuckets.get(key);
+                        if (!current || current.score < candidate.score) {
+                            cornerBuckets.set(key, candidate);
+                        }
+                    }
+                }
+
+                localCorners.push(...cornerBuckets.values());
+                localCorners.sort((a, b) => b.score - a.score);
+            }
+
+            const diag = Math.hypot(aw, ah);
+            const thetaBins = 180;
+            const rhoBins = Math.max(256, Math.min(1400, Math.ceil(diag * 1.2)));
+            const accumulator = new Float32Array(thetaBins * rhoBins);
+            const voteStep = strongEdges.length > 26000 ? 2 : 1;
+
+            for (let i = 0; i < strongEdges.length; i += voteStep) {
+                const pt = strongEdges[i];
+                const baseTheta = normalizeTheta(Math.atan2(pt.gy, pt.gx));
+                const baseBin = Math.round(baseTheta / Math.PI * (thetaBins - 1));
+                const baseWeight = 0.35 + pt.score * pt.score * 2.65;
+
+                for (let dt = -2; dt <= 2; dt++) {
+                    const thetaBin = clamp(baseBin + dt, 0, thetaBins - 1);
+                    const theta = thetaBin / (thetaBins - 1) * Math.PI;
+                    const rho = pt.x * Math.cos(theta) + pt.y * Math.sin(theta);
+                    const rhoPos = (rho + diag) / (2 * diag) * (rhoBins - 1);
+                    if (rhoPos < 0 || rhoPos > rhoBins - 1) continue;
+
+                    const rhoFloor = Math.floor(rhoPos);
+                    const frac = rhoPos - rhoFloor;
+                    const w = baseWeight * HOUGH_THETA_KERNEL[dt + 2];
+                    const row = thetaBin * rhoBins;
+
+                    if (rhoFloor >= 0 && rhoFloor < rhoBins) {
+                        accumulator[row + rhoFloor] += w * (1 - frac);
+                    }
+
+                    const rhoNext = rhoFloor + 1;
+                    if (rhoNext >= 0 && rhoNext < rhoBins) {
+                        accumulator[row + rhoNext] += w * frac;
+                    }
+                }
+            }
+
+            const rawPeaks = extractHoughPeaks(accumulator, thetaBins, rhoBins, 18);
+            const supportSampleStep = strongEdges.length > 28000 ? 3 : strongEdges.length > 18000 ? 2 : 1;
+            const lineCandidates = rawPeaks.map(peak => {
+                const theta = peak.thetaBin / (thetaBins - 1) * Math.PI;
+                const rho = (peak.rhoBin / (rhoBins - 1)) * (2 * diag) - diag;
+                return {
+                    theta: normalizeTheta(theta),
+                    rho,
+                    score: peak.score || 0,
+                };
+            }).map(line => {
+                const support = scoreHoughLineSupport(line, strongEdges, diag, 2.6, supportSampleStep);
+                return {
+                    ...line,
+                    support,
+                    score: line.score * (0.55 + support * 1.9),
+                };
+            });
+
+            const mergedLines = [];
+            for (const line of lineCandidates.sort((a, b) => b.score - a.score)) {
+                const normalizedLine = {
+                    theta: line.theta,
+                    rho: line.rho * invScale,
+                    score: line.score,
+                    support: line.support,
+                };
+
+                let merged = false;
+
+                for (const target of mergedLines) {
+                    if (
+                        angleDiffPi(normalizedLine.theta, target.theta) < Math.PI / 72 &&
+                        Math.abs(normalizedLine.rho - target.rho) < 13 * invScale
+                    ) {
+                        const total = target.score + normalizedLine.score;
+                        target.theta = normalizeTheta((target.theta * target.score + normalizedLine.theta * normalizedLine.score) / total);
+                        target.rho = (target.rho * target.score + normalizedLine.rho * normalizedLine.score) / total;
+                        target.support = (target.support * target.score + normalizedLine.support * normalizedLine.score) / total;
+                        target.score = total;
+                        merged = true;
+                        break;
+                    }
+                }
+
+                if (!merged) mergedLines.push({ ...normalizedLine });
+            }
+
+            for (const line of mergedLines) {
+                line.score *= 0.65 + line.support * 1.35;
+            }
+
+            const groups = buildOrientationGroups(mergedLines);
+            const pair = pickGroupPair(groups);
+
+            let docLines = [];
+            let docCorners = [];
+
+            if (pair) {
+                const bestQuad = chooseBestDocumentQuad(
+                    pair[0],
+                    pair[1],
+                    localCorners,
+                    naturalWidth,
+                    naturalHeight,
+                    invScale
+                );
+
+                if (bestQuad) {
+                    docLines = bestQuad.lines;
+
+                    const cornerSupportRadius = 36 * invScale;
+                    docCorners = orderQuad(bestQuad.corners).map((pt, idx) => ({
+                        x: clamp(pt.x, 0, naturalWidth - 1),
+                        y: clamp(pt.y, 0, naturalHeight - 1),
+                        score: 1.2 + nearestCornerSupport(pt, localCorners, cornerSupportRadius) * 2.4 + (3 - idx) * 0.02,
+                    }));
+                }
+            }
+
+            analysisData = {
+                downScale,
+                edgePoints: edgePoints.slice(0, 5000),
+                localCorners: localCorners.slice(0, 120),
+                candidateLines: mergedLines
+                    .slice()
+                    .sort((a, b) => b.score - a.score)
+                    .slice(0, 24),
+                docCorners,
+                docLines,
+                overlayStride: Math.max(1, Math.round(edgePoints.length / 1400)),
+            };
+
+            redrawEditor();
+
+            const parts = [
+                `候補線 ${analysisData.candidateLines.length} 本`,
+                `文書線 ${analysisData.docLines.length} 本`,
+                `推定四隅 ${analysisData.docCorners.length} 点`,
+                `局所角 ${analysisData.localCorners.length} 点`,
+                `エッジ ${analysisData.edgePoints.length} 点`,
+            ];
+            setStatus(`解析完了: ${parts.join(", ")}`);
+        }
+
+        function snapPointsToDetectedFrame() {
+            if (analysisData?.docCorners?.length !== 4) return false;
+
+            points = analysisData.docCorners.map(pt => ({ x: pt.x, y: pt.y }));
+            redrawEditor();
+            return true;
+        }
+
+        function autoSnapAllPoints() {
+            if (!image) return;
+            if (!analysisData) analyzeEdges();
+
+            if (snapPointsToDetectedFrame()) {
+                queueRealtimeCorrection(false);
+                setStatus("主枠の交点へ吸着しました");
+                return;
+            }
+
+            points = points.map((pt, idx) => applySnapCandidate(pt, true, idx, true));
+            redrawEditor();
+            queueRealtimeCorrection(false);
+            setStatus("近傍のエッジ/角へ吸着しました");
+        }
+
+        function nudgeSelected(dx, dy, withSnap = false) {
+            if (!image) return;
+
+            const step = Math.max(1, Number(nudgeStepInput.value) || 1);
+            let next = {
+                x: clamp(points[selectedHandle].x + dx * step, 0, naturalWidth - 1),
+                y: clamp(points[selectedHandle].y + dy * step, 0, naturalHeight - 1),
+            };
+
+            if (withSnap) {
+                if (!analysisData) analyzeEdges();
+                next = applySnapCandidate(next, true, selectedHandle, true);
+            }
+
+            points[selectedHandle] = next;
+            redrawEditor();
+            queueRealtimeCorrection(false);
+        }
+
+        function gaussianSolve(matrix, vector) {
+            const n = vector.length;
+            const a = matrix.map((row, i) => [...row, vector[i]]);
+
+            for (let col = 0; col < n; col++) {
+                let pivot = col;
+
+                for (let row = col + 1; row < n; row++) {
+                    if (Math.abs(a[row][col]) > Math.abs(a[pivot][col])) {
+                        pivot = row;
+                    }
+                }
+
+                if (Math.abs(a[pivot][col]) < 1e-12) {
+                    throw new Error("変換行列を解けませんでした");
+                }
+
+                if (pivot !== col) {
+                    [a[col], a[pivot]] = [a[pivot], a[col]];
+                }
+
+                const pivotVal = a[col][col];
+                for (let j = col; j <= n; j++) {
+                    a[col][j] /= pivotVal;
+                }
+
+                for (let row = 0; row < n; row++) {
+                    if (row === col) continue;
+                    const factor = a[row][col];
+                    for (let j = col; j <= n; j++) {
+                        a[row][j] -= factor * a[col][j];
+                    }
+                }
+            }
+
+            return a.map(row => row[n]);
+        }
+
+        function computeHomography(fromPts, toPts) {
+            const A = [];
+            const b = [];
+
+            for (let i = 0; i < 4; i++) {
+                const x = fromPts[i].x;
+                const y = fromPts[i].y;
+                const u = toPts[i].x;
+                const v = toPts[i].y;
+
+                A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]);
+                b.push(u);
+                A.push([0, 0, 0, x, y, 1, -v * x, -v * y]);
+                b.push(v);
+            }
+
+            const h = gaussianSolve(A, b);
+            return [
+                [h[0], h[1], h[2]],
+                [h[3], h[4], h[5]],
+                [h[6], h[7], 1],
+            ];
+        }
+
+        function applyHomography(H, x, y) {
+            const denom = H[2][0] * x + H[2][1] * y + H[2][2];
+            return {
+                x: (H[0][0] * x + H[0][1] * y + H[0][2]) / denom,
+                y: (H[1][0] * x + H[1][1] * y + H[1][2]) / denom,
+            };
+        }
+
+        function bilinearSampleToBuffer(src, sw, sh, x, y, dst, offset) {
+            const x0 = Math.floor(x);
+            const y0 = Math.floor(y);
+            const x1 = Math.min(x0 + 1, sw - 1);
+            const y1 = Math.min(y0 + 1, sh - 1);
+            const dx = x - x0;
+            const dy = y - y0;
+
+            const i00 = (y0 * sw + x0) * 4;
+            const i10 = (y0 * sw + x1) * 4;
+            const i01 = (y1 * sw + x0) * 4;
+            const i11 = (y1 * sw + x1) * 4;
+
+            for (let c = 0; c < 4; c++) {
+                const v00 = src[i00 + c];
+                const v10 = src[i10 + c];
+                const v01 = src[i01 + c];
+                const v11 = src[i11 + c];
+
+                const top = v00 * (1 - dx) + v10 * dx;
+                const bottom = v01 * (1 - dx) + v11 * dx;
+                dst[offset + c] = top * (1 - dy) + bottom * dy;
+            }
+        }
+
+        function estimateOutputSize(maxEdge = 2200) {
+            const top = dist(points[0], points[1]);
+            const bottom = dist(points[3], points[2]);
+            const left = dist(points[0], points[3]);
+            const right = dist(points[1], points[2]);
+
+            let width = Math.max(1, Math.round((top + bottom) / 2));
+            let height = Math.max(1, Math.round((left + right) / 2));
+
+            const cappedMaxEdge = Math.max(480, maxEdge || 2200);
+            const longEdge = Math.max(width, height);
+            if (longEdge > cappedMaxEdge) {
+                const s = cappedMaxEdge / longEdge;
+                width = Math.max(1, Math.round(width * s));
+                height = Math.max(1, Math.round(height * s));
+            }
+
+            return { width, height };
+        }
+
+        function getSourceForCorrection(quality) {
+            if (quality === "preview") {
+                if (!previewSourcePixels || !previewSourceCanvas.width || !previewSourceCanvas.height) {
+                    rebuildPreviewSource();
+                }
+
+                if (previewSourcePixels && previewSourceCanvas.width > 1 && previewSourceCanvas.height > 1) {
+                    return {
+                        pixels: previewSourcePixels,
+                        width: previewSourceCanvas.width,
+                        height: previewSourceCanvas.height,
+                        pointScale: previewSourceScale,
+                    };
+                }
+            }
+
+            const srcImageData = sourceCtx.getImageData(0, 0, naturalWidth, naturalHeight);
+            return {
+                pixels: srcImageData.data,
+                width: naturalWidth,
+                height: naturalHeight,
+                pointScale: 1,
+            };
+        }
+
+        async function correctPerspective(options = {}) {
+            if (!image) return;
+
+            const interactive = Boolean(options.interactive);
+            const quality = options.quality || (interactive ? "preview" : "high");
+            const updateStatus = options.updateStatus !== false;
+            const usePreview = quality === "preview";
+
+            if (updateStatus) {
+                setStatus(usePreview ? "リアルタイム補正中..." : "補正中...");
+            }
+
+            if (!interactive) {
+                correctBtn.disabled = true;
+                await new Promise(resolve => requestAnimationFrame(resolve));
+            }
+
+            try {
+                const outputMaxEdge = usePreview ? getRealtimeMaxEdge() : 2200;
+                const { width: outW, height: outH } = estimateOutputSize(outputMaxEdge);
+
+                const source = getSourceForCorrection(usePreview ? "preview" : "high");
+                const mappedPoints = source.pointScale === 1
+                    ? points
+                    : points.map(pt => ({ x: pt.x * source.pointScale, y: pt.y * source.pointScale }));
+
+                resultCanvas.width = outW;
+                resultCanvas.height = outH;
+
+                const dstRect = [
+                    { x: 0, y: 0 },
+                    { x: outW - 1, y: 0 },
+                    { x: outW - 1, y: outH - 1 },
+                    { x: 0, y: outH - 1 },
+                ];
+
+                const H = computeHomography(dstRect, mappedPoints);
+
+                const outImageData = resultCtx.createImageData(outW, outH);
+                const out = outImageData.data;
+
+                for (let y = 0; y < outH; y++) {
+                    for (let x = 0; x < outW; x++) {
+                        const srcPos = applyHomography(H, x + 0.5, y + 0.5);
+                        const ox = (y * outW + x) * 4;
+
+                        if (
+                            srcPos.x >= 0 &&
+                            srcPos.y >= 0 &&
+                            srcPos.x <= source.width - 1 &&
+                            srcPos.y <= source.height - 1
+                        ) {
+                            bilinearSampleToBuffer(
+                                source.pixels,
+                                source.width,
+                                source.height,
+                                srcPos.x,
+                                srcPos.y,
+                                out,
+                                ox
+                            );
+                        } else {
+                            out[ox] = 255;
+                            out[ox + 1] = 255;
+                            out[ox + 2] = 255;
+                            out[ox + 3] = 255;
+                        }
+                    }
+                }
+
+                resultCtx.putImageData(outImageData, 0, 0);
+                resultWrap.classList.remove("empty");
+                downloadBtn.disabled = false;
+                sendToEffectorBtn.disabled = false;
+                updateResultMeta(outW, outH);
+                lastRenderQuality = usePreview ? "preview" : "high";
+
+                if (updateStatus) {
+                    setStatus(usePreview
+                        ? `リアルタイム補正更新: ${outW} × ${outH}px`
+                        : `補正完了: ${outW} × ${outH}px`);
+                }
+            } catch (error) {
+                console.error(error);
+                if (updateStatus) {
+                    setStatus(error instanceof Error ? error.message : "補正に失敗しました");
+                }
+            } finally {
+                if (!interactive) {
+                    correctBtn.disabled = false;
+                }
+            }
+        }
+
+        async function downloadResult() {
+            if (!resultCanvas.width || !resultCanvas.height || lastRenderQuality !== "high") {
+                await correctPerspective({ quality: "high", interactive: false, updateStatus: true });
+            }
+
+            if (!resultCanvas.width || !resultCanvas.height) return;
+
+            resultCanvas.toBlob(blob => {
+                if (!blob) {
+                    setStatus("保存用データの生成に失敗しました");
+                    return;
+                }
+
+                if (lastResultBlobUrl) {
+                    URL.revokeObjectURL(lastResultBlobUrl);
+                }
+
+                lastResultBlobUrl = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = lastResultBlobUrl;
+                a.download = buildCorrectedFileName("trapezoid_corrected");
+                a.click();
+                setStatus("PNGを保存しました");
+            }, "image/png");
+        }
+
+        async function sendResultToImageEffector() {
+            if (!image) return;
+
+            const receiverWindow = window.open(IMAGE_EFFECTOR_TARGET_URL, "_blank");
+            if (!receiverWindow) {
+                setStatus("Image Effector を開けませんでした。ポップアップブロックを確認してください");
+                return;
+            }
+
+            sendToEffectorBtn.disabled = true;
+            let waitingForAck = false;
+
+            try {
+                if (!resultCanvas.width || !resultCanvas.height || lastRenderQuality !== "high") {
+                    await correctPerspective({ quality: "high", interactive: false, updateStatus: true });
+                }
+
+                const blob = await new Promise(resolve => {
+                    resultCanvas.toBlob(resolve, "image/png");
+                });
+
+                if (!blob) {
+                    setStatus("転送用データの生成に失敗しました");
+                    return;
+                }
+
+                const transferId = `tc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+                const payload = {
+                    type: "image-effector-import",
+                    id: transferId,
+                    source: "trapezoidal_corrector",
+                    fileName: buildCorrectedFileName("trapezoid_corrected"),
+                    mimeType: "image/png",
+                    width: resultCanvas.width,
+                    height: resultCanvas.height,
+                    blob,
+                };
+
+                let finished = false;
+                const startedAt = Date.now();
+                const timeoutMs = 16000;
+                let timer = null;
+
+                const postPayload = () => {
+                    try {
+                        receiverWindow.postMessage(payload, IMAGE_EFFECTOR_TARGET_ORIGIN);
+                        return true;
+                    } catch (error) {
+                        console.error(error);
+                        return false;
+                    }
+                };
+
+                const cleanup = () => {
+                    window.removeEventListener("message", onMessage);
+                    if (timer) {
+                        clearInterval(timer);
+                        timer = null;
+                    }
+                    waitingForAck = false;
+                    sendToEffectorBtn.disabled = false;
+                };
+
+                const onMessage = event => {
+                    if (event.origin !== IMAGE_EFFECTOR_TARGET_ORIGIN) return;
+                    if (event.source !== receiverWindow) return;
+
+                    const data = event.data;
+
+                    if (data?.type === "image-effector-receiver-ready") {
+                        postPayload();
+                        return;
+                    }
+
+                    if (data?.type === "image-effector-import-ack" && data?.id === transferId) {
+                        finished = true;
+                        cleanup();
+                        setStatus("Image Effector へ画像を渡しました");
+                    }
+                };
+
+                window.addEventListener("message", onMessage);
+                waitingForAck = true;
+
+                timer = setInterval(() => {
+                    if (finished) return;
+
+                    if (Date.now() - startedAt > timeoutMs) {
+                        cleanup();
+                        setStatus("Image Effector への転送がタイムアウトしました。タブを再読み込みして再実行してください");
+                        return;
+                    }
+
+                    postPayload();
+                }, 380);
+
+                postPayload();
+                setStatus("Image Effector へ転送中...");
+            } catch (error) {
+                console.error(error);
+                setStatus("Image Effector への転送に失敗しました");
+            } finally {
+                if (!waitingForAck) {
+                    sendToEffectorBtn.disabled = false;
+                }
+            }
+        }
+
+        async function loadFile(file) {
+            if (!file) return;
+
+            if (imageBitmapRef && typeof imageBitmapRef.close === "function") {
+                imageBitmapRef.close();
+            }
+
+            setStatus("画像を読み込み中...");
+
+            try {
+                imageBitmapRef = await createImageBitmap(file);
+                image = imageBitmapRef;
+                sourceFileBaseName = normalizeFileStem(file.name || "image");
+
+                naturalWidth = image.width;
+                naturalHeight = image.height;
+
+                sourceCanvas.width = naturalWidth;
+                sourceCanvas.height = naturalHeight;
+                sourceCtx.clearRect(0, 0, naturalWidth, naturalHeight);
+                sourceCtx.drawImage(image, 0, 0);
+                rebuildPreviewSource();
+
+                analysisData = null;
+                points = defaultPointsForImage(naturalWidth, naturalHeight);
+                lastRenderQuality = "none";
+
+                fitCanvasToImage();
+                setSelectedHandle(0);
+                redrawEditor();
+
+                editorWrap.classList.remove("empty");
+                resultWrap.classList.add("empty");
+                resultCanvas.width = 0;
+                resultCanvas.height = 0;
+                updateResultMeta();
+
+                analyzeBtn.disabled = false;
+                autoSnapBtn.disabled = false;
+                resetBtn.disabled = false;
+                correctBtn.disabled = false;
+                downloadBtn.disabled = true;
+                sendToEffectorBtn.disabled = true;
+
+                analyzeEdges();
+
+                if (snapPointsToDetectedFrame()) {
+                    setStatus("解析完了: 主枠の交点へ自動吸着しました");
+                } else {
+                    points = points.map((pt, idx) => applySnapCandidate(pt, true, idx, true));
+                    redrawEditor();
+                    setStatus("解析完了: 近傍候補へ自動吸着しました");
+                }
+
+                queueRealtimeCorrection(false);
+            } catch (error) {
+                console.error(error);
+                setStatus("画像の読み込みに失敗しました");
+            }
+        }
+
+        fileInput.addEventListener("change", event => {
+            const file = event.target.files?.[0];
+            loadFile(file);
+        });
+
+        analyzeBtn.addEventListener("click", analyzeEdges);
+        autoSnapBtn.addEventListener("click", autoSnapAllPoints);
+        resetBtn.addEventListener("click", resetPoints);
+        correctBtn.addEventListener("click", () => {
+            correctPerspective({ quality: "high", interactive: false, updateStatus: true });
+        });
+        downloadBtn.addEventListener("click", downloadResult);
+        sendToEffectorBtn.addEventListener("click", sendResultToImageEffector);
+
+        selectedHandleSelect.addEventListener("change", () => {
+            setSelectedHandle(Number(selectedHandleSelect.value));
+        });
+
+        showEdgesInput.addEventListener("change", redrawEditor);
+        showCornersInput.addEventListener("change", redrawEditor);
+        snapEnabledInput.addEventListener("change", redrawEditor);
+        snapRadiusInput.addEventListener("input", redrawEditor);
+        cornerBiasInput.addEventListener("input", redrawEditor);
+
+        nudgeUpBtn.addEventListener("click", () => nudgeSelected(0, -1));
+        nudgeLeftBtn.addEventListener("click", () => nudgeSelected(-1, 0));
+        nudgeRightBtn.addEventListener("click", () => nudgeSelected(1, 0));
+        nudgeDownBtn.addEventListener("click", () => nudgeSelected(0, 1));
+        snapOneBtn.addEventListener("click", () => nudgeSelected(0, 0, true));
+
+        editorCanvas.addEventListener("pointerdown", onPointerDown);
+        editorCanvas.addEventListener("pointermove", onPointerMove);
+        editorCanvas.addEventListener("pointerup", endDrag);
+        editorCanvas.addEventListener("pointercancel", endDrag);
+        editorCanvas.addEventListener("lostpointercapture", () => {
+            dragging = false;
+            activeHandle = -1;
+            redrawEditor();
+        });
+
+        window.addEventListener("resize", () => {
+            if (!image) return;
+            fitCanvasToImage();
+            redrawEditor();
+            queueRealtimeCorrection(false);
+        });
+
+        window.addEventListener("keydown", event => {
+            if (!image) return;
+
+            const tag = document.activeElement?.tagName;
+            if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+
+            const stepMultiplier = event.shiftKey ? 5 : 1;
+            const baseStep = Math.max(1, Number(nudgeStepInput.value) || 1);
+            nudgeStepInput.value = String(baseStep * stepMultiplier);
+
+            let handled = true;
+
+            switch (event.key) {
+                case "ArrowUp":
+                    nudgeSelected(0, -1);
+                    break;
+                case "ArrowDown":
+                    nudgeSelected(0, 1);
+                    break;
+                case "ArrowLeft":
+                    nudgeSelected(-1, 0);
+                    break;
+                case "ArrowRight":
+                    nudgeSelected(1, 0);
+                    break;
+                case "s":
+                case "S":
+                    nudgeSelected(0, 0, true);
+                    break;
+                default:
+                    handled = false;
+            }
+
+            nudgeStepInput.value = String(baseStep);
+
+            if (handled) {
+                event.preventDefault();
+            }
+        });
+    </script>
+</main>
