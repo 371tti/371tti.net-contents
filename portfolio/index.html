@@ -9,18 +9,154 @@ tags:
 is_complete: false
 ---
 
+<style>
+    .portfolio-hero {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        flex-wrap: wrap;
+    }
+
+    .portfolio-hero-name {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: flex-start;
+        min-height: 88px;
+    }
+
+    .portfolio-hero-name h1 {
+        margin: 0;
+        padding: 0;
+    }
+
+    .portfolio-hero-name p {
+        margin: 0.3rem 0 0;
+    }
+
+    .portfolio-hero img {
+        width: 88px;
+        height: 88px;
+        border-radius: 50%;
+    }
+
+    .profile-grid .button {
+        align-items: center;
+        gap: 0.7rem;
+    }
+
+    .profile-grid .button p {
+        margin: 0;
+    }
+
+    .profile-grid .button svg {
+        flex-shrink: 0;
+    }
+
+    .links-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6mm;
+        align-items: stretch;
+    }
+
+    .link-card-link {
+        text-decoration: none;
+    }
+
+    .link-card {
+        display: grid;
+        grid-template-rows: auto auto auto 1fr;
+        gap: 2.4mm;
+    }
+
+    .link-card h3 {
+        padding: 0;
+        margin: 0;
+        line-height: 1.35;
+        font-size: 1.1em;
+    }
+
+    .link-card-desc {
+        margin: 0;
+        padding-top: 2.2mm;
+        border-top: 1px solid var(--color-bg-2);
+        color: var(--color-text-0);
+        line-height: 1.6;
+    }
+
+    .link-card-media {
+        width: 100%;
+        aspect-ratio: 3 / 1;
+        overflow: hidden;
+        border: 1px solid var(--color-bg-2);
+        background: var(--color-bg-1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .links-grid .link-card-media img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center;
+        display: block;
+    }
+
+    .link-card-fallback {
+        display: none;
+        width: 100%;
+        height: 100%;
+        padding: 0.6rem;
+        text-align: center;
+        align-items: center;
+        justify-content: center;
+        color: var(--color-text-0);
+        line-height: 1.5;
+    }
+
+    @media (max-width:900px) {
+        .portfolio-hero {
+            align-items: flex-start;
+        }
+
+        .portfolio-hero img {
+            width: 72px;
+            height: 72px;
+        }
+
+        .portfolio-hero-name {
+            min-height: 72px;
+        }
+
+        .w2 {
+            grid-column: span 1;
+        }
+
+        .links-grid {
+            grid-template-columns: 1fr;
+            gap: 4mm;
+        }
+    }
+</style>
+
 
 <main>
     <article>
         <div>
             <h1>My Portfolio</h1>
             <hr>
-            <div class="grid2">
-                <div class="card-o">
-                    <img src="/371tti_icon.png" alt="371tti Icon" class="x-center">
+            <div class="grid2 profile-grid">
+                <div class="card-o w2 portfolio-hero">
+                    <img src="/371tti_icon.png" alt="371tti Icon" loading="lazy">
+                    <div class="portfolio-hero-name">
+                        <h1>371tti</h1>
+                        <p>読みは "みないっち" です。SEO 最強の名前、本名のもじりです。</p>
+                    </div>
                 </div>
                 <div class="card">
-                    <h2>371tti (みないっち)</h2>
+                    <h2>Profile</h2>
                     <ul>
                         <li><b>Age</b>: 17</li>
                         <li><b>Location</b>: Japan</li>
@@ -75,7 +211,7 @@ is_complete: false
                         </p>
                     </a>
                 </div>
-                <div class="card-o">
+                <div class="card-o w2">
                     <h2>Skills</h2>
                     <ul>
                         <li>System Development with <a href="https://rust-lang.org">Rust</a>, <a
@@ -127,78 +263,116 @@ is_complete: false
             あとちょうど本屋に行ったのでこの目標をよりよく達成するためにUXデザインについての本を買ってきました。<br>
             <a href="https://lawsofux.com">Laws of UX</a> のとこの人の本ですね これすごく面白いですよ、 前述のサイトにも書かれてるので興味ある方はぜひ。
         </p>
+        
+        <hr>
 
         <h2 class="h">Links</h2>
-        <p>バナー集かな...いってくれたら乗せます</p>
-        <div class="grid2">
-            <a href="https://371tti.net">
-                <div class="card max">
-                    <img src="/banner.gif" alt="ばーなーがぞう" loading="lazy" height="100mm" class="x-center">
+        <p>バナー画像の規格統一しろよな あと言ってくれたら載せますよん</p>
+        <div class="grid2 links-grid">
+            <a class="link-card-link" href="https://371tti.net">
+                <div class="card max link-card">
+                    <div class="link-card-media">
+                        <img src="/banner.gif" alt="371tti.net banner" loading="lazy" class="x-center"
+                            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <span class="link-card-fallback">画像を取得できませんでした (371tti.net)</span>
+                    </div>
                     <h3>371tti.net</h3>
-                    <p>このサイト<br>バナーは好きにのせてもらってもよいんですよ？</p>
+                    <p class="link-card-desc">このサイト。バナーは好きに載せてもらって大丈夫です。</p>
                 </div>
             </a>
-            <a href="https://sakana11.org">
-                <div class="card max">
-                    <img src="https://cdn.sakana11.org/banner.jpg" alt="banner" loading="lazy" height="100mm"
-                        class="x-center">
+            <a class="link-card-link" href="https://sakana11.org">
+                <div class="card max link-card">
+                    <div class="link-card-media">
+                        <img src="https://cdn.sakana11.org/banner.jpg" alt="sakana11.org banner" loading="lazy"
+                            class="x-center"
+                            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <span class="link-card-fallback">画像を取得できませんでした (sakana11.org)</span>
+                    </div>
                     <h3>sakana11.org</h3>
-                    <p>自宅サバ、インフラできる人。</p>
+                    <p class="link-card-desc">自宅サーバー、インフラできる人。</p>
                 </div>
             </a>
-            <a href="https://akku1139.github.io/">
-                <div class="card max">
-                    <img src="https://akku1139.github.io/banners/320x100.png" alt="banner-akku" loading="lazy"
-                        height="100mm" class="x-center">
+            <a class="link-card-link" href="https://akku1139.github.io/">
+                <div class="card max link-card">
+                    <div class="link-card-media">
+                        <img src="https://akku1139.github.io/banners/320x100.png" alt="akku1139.github.io banner"
+                            loading="lazy" class="x-center"
+                            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <span class="link-card-fallback">画像を取得できませんでした (akku1139.github.io)</span>
+                    </div>
                     <h3>akku1139.github.io</h3>
-                    <p>akku1139 相互リンクいっぱいある</p>
+                    <p class="link-card-desc">akku1139 相互リンクいっぱいある。</p>
                 </div>
             </a>
-            <a href="https://256server.com/">
-                <div class="card max">
-                    <img src="https://256server.com/image/banner/256server.png" alt="256server.com" loading="lazy"
-                        height="100mm" class="x-center">
+            <a class="link-card-link" href="https://256server.com/">
+                <div class="card max link-card">
+                    <div class="link-card-media">
+                        <img src="https://256server.com/image/banner/256server.png" alt="256server.com banner"
+                            loading="lazy" class="x-center"
+                            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <span class="link-card-fallback">画像を取得できませんでした (256server.com)</span>
+                    </div>
                     <h3>256server.com</h3>
-                    <p>256サーバー、インフラできる人。</p>
+                    <p class="link-card-desc">256サーバー、インフラできる人。</p>
                 </div>
             </a>
-            <a href="https://t3tra.dev/">
-                <div class="card max">
-                    <img src="https://t3tra.dev/images/banner_dark.png" alt="banner-t3tra" loading="lazy" height="100mm"
-                        class="x-center">
+            <a class="link-card-link" href="https://t3tra.dev/">
+                <div class="card max link-card">
+                    <div class="link-card-media">
+                        <img src="https://t3tra.dev/static/avatar.jpg" alt="t3tra.dev banner" loading="lazy"
+                            class="x-center"
+                            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <span class="link-card-fallback">画像を取得できませんでした (t3tra.dev)</span>
+                    </div>
                     <h3>t3tra.dev</h3>
-                    <p>t3traちゃん 巷で噂の都市伝説的存在<br>ただの強つよエンジニアだねbr</p>
+                    <p class="link-card-desc">t3traちゃん。巷で噂の都市伝説的存在、ただの強つよエンジニア。</p>
                 </div>
             </a>
-            <a href="https://main.skikozou.me/">
-                <div class="card max">
-                    <img src="https://main.skikozou.me/banner.png" alt="banner-skikozou" loading="lazy" height="100mm"
-                        class="x-center">
+            <a class="link-card-link" href="https://main.skikozou.me/">
+                <div class="card max link-card">
+                    <div class="link-card-media">
+                        <img src="https://main.skikozou.me/banner.png" alt="main.skikozou.me banner" loading="lazy"
+                            class="x-center"
+                            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <span class="link-card-fallback">画像を取得できませんでした (main.skikozou.me)</span>
+                    </div>
                     <h3>main.skikozou.me</h3>
-                    <p>skikozouさん</p>
+                    <p class="link-card-desc">skikozouさん。</p>
                 </div>
             </a>
-            <a href="https://imme.kotoca.net/">
-                <div class="card max">
-                    <img src="https://imme.kotoca.net/banner.png" alt="imme.kotoca.net" loading="lazy" height="100mm"
-                        class="x-center">
+            <a class="link-card-link" href="https://imme.kotoca.net/">
+                <div class="card max link-card">
+                    <div class="link-card-media">
+                        <img src="https://pf.kotoca.net/banner.png" alt="imme.kotoca.net banner" loading="lazy"
+                            class="x-center"
+                            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <span class="link-card-fallback">画像を取得できませんでした (imme.kotoca.net)</span>
+                    </div>
                     <h3>imme.kotoca.net</h3>
-                    <p>immeさん アイコンがコロコロかわる人</p>
+                    <p class="link-card-desc">immeさん。アイコンがコロコロかわる人。</p>
                 </div>
             </a>
-            <a href="https://info.takos.jp">
-                <div class="card max">
-                    <img src="https://info.takos.jp/banner.png" alt="バーナーがぞう" loading="lazy" height="100mm"
-                        class="x-center">
+            <a class="link-card-link" href="https://info.takos.jp">
+                <div class="card max link-card">
+                    <div class="link-card-media">
+                        <img src="https://info.takos.jp/banner.png" alt="info.takos.jp banner" loading="lazy"
+                            class="x-center"
+                            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <span class="link-card-fallback">画像を取得できませんでした (info.takos.jp)</span>
+                    </div>
                     <h3>info.takos.jp</h3>
-                    <p>takosちゃん あああタコタコー</p>
+                    <p class="link-card-desc">takosちゃん。あああタコタコー。</p>
                 </div>
             </a>
-            <a href="https://m4gu.dev/">
-                <div class="card max">
-                    <img src="https://m4gu.dev/magu.png" alt="m4gu.dev" loading="lazy" height="100mm" class="x-center">
+            <a class="link-card-link" href="https://m4gu.dev/">
+                <div class="card max link-card">
+                    <div class="link-card-media">
+                        <img src="https://m4gu.dev/magu.png" alt="m4gu.dev banner" loading="lazy" class="x-center"
+                            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <span class="link-card-fallback">画像を取得できませんでした (m4gu.dev)</span>
+                    </div>
                     <h3>m4gu.dev</h3>
-                    <p>maguちゃん KAWAII</p>
+                    <p class="link-card-desc">maguちゃん。KAWAII。</p>
                 </div>
             </a>
         </div>
