@@ -1,0 +1,486 @@
+---
+title: Tree Viewer Sample
+description: ファイルツリーを展開しながら閲覧するサンプル
+authors:
+- 371tti
+tags:
+- samples
+- tree
+- viewer
+is_complete: false
+---
+
+<style>
+    .tree-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 2mm;
+        margin: 6mm 0 5mm;
+    }
+
+    .tree-toolbar label {
+        color: var(--color-text-0);
+        font-size: 0.9rem;
+    }
+
+    #treePathInput {
+        flex: 1 1 18rem;
+        min-width: 12rem;
+        margin: 0;
+        padding: 2mm 3mm;
+        background: var(--color-bg-1);
+        border: 1px solid var(--color-bg-2);
+        color: var(--color-text-0);
+    }
+
+    .tree-toolbar .button {
+        margin: 0;
+        padding: 1.4mm 4mm;
+    }
+
+    .tree-status {
+        margin-left: auto;
+        color: var(--color-text-0);
+        font-size: 0.88rem;
+    }
+
+    .tree-status.is-error {
+        color: #e57474;
+    }
+
+    .tree-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+        gap: 4mm;
+    }
+
+    .tree-pane h2 {
+        margin-top: 0;
+    }
+
+    .tree-list,
+    .tree-children {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    .tree-node+.tree-node {
+        margin-top: 1mm;
+    }
+
+    .tree-children {
+        margin-left: 4.6mm;
+        padding-left: 2.8mm;
+        border-left: 1px solid var(--color-bg-2);
+    }
+
+    .tree-row {
+        display: grid;
+        grid-template-columns: auto auto minmax(0, 1fr) auto;
+        align-items: center;
+        column-gap: 2mm;
+        min-height: 1.9rem;
+    }
+
+    .tree-toggle,
+    .tree-gap {
+        width: 1.2rem;
+        height: 1.2rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .tree-toggle {
+        border: 0;
+        margin: 0;
+        padding: 0;
+        cursor: pointer;
+        background: transparent;
+        color: var(--color-text-0);
+        font-size: 0.9rem;
+        line-height: 1;
+    }
+
+    .tree-gap {
+        color: transparent;
+        user-select: none;
+    }
+
+    .tree-icon {
+        width: 1.1rem;
+        height: 1.1rem;
+        color: var(--color-text-0);
+    }
+
+    .tree-node[data-kind="dir"] .tree-icon {
+        color: var(--color-accent-0);
+    }
+
+    .tree-icon use {
+        fill: currentColor;
+    }
+
+    .tree-name {
+        background: transparent;
+        border: 0;
+        margin: 0;
+        padding: 0;
+        font: inherit;
+        color: var(--color-text-1);
+        text-align: left;
+        cursor: pointer;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .tree-name:hover,
+    .tree-name.is-selected {
+        color: var(--color-accent-0);
+    }
+
+    .tree-open {
+        margin: 0;
+        padding: 0.7mm 3mm;
+        font-size: 0.78rem;
+        white-space: nowrap;
+    }
+
+    .tree-empty {
+        margin: 2.2mm 0 0;
+        color: var(--color-text-0);
+        font-size: 0.9rem;
+    }
+
+    .tree-info {
+        display: grid;
+        gap: 2.2mm;
+    }
+
+    .tree-info p,
+    .tree-info ul,
+    .tree-info h3 {
+        margin: 0;
+    }
+
+    .tree-info h3 {
+        font-size: 1.02rem;
+    }
+
+    .tree-info ul {
+        padding-left: 1.2em;
+        color: var(--color-text-0);
+    }
+
+    .tree-info .tree-muted {
+        color: var(--color-text-0);
+        font-size: 0.9rem;
+    }
+
+    @media (max-width: 900px) {
+        .tree-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .tree-status {
+            width: 100%;
+            margin-left: 0;
+        }
+    }
+</style>
+
+<svg aria-hidden="true" width="0" height="0" style="position:absolute; width:0; height:0; overflow:hidden;">
+    <defs>
+        <symbol id="tree-icon-folder" viewBox="0 0 24 24">
+            <path d="M10 4H4a2 2 0 0 0-2 2v11a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3V8a2 2 0 0 0-2-2h-8L10 4Z"
+                fill="currentColor" />
+        </symbol>
+        <symbol id="tree-icon-file" viewBox="0 0 24 24">
+            <path
+                d="M14 3.75H7a2 2 0 0 0-2 2V19a2 2 0 0 0 2 2h8.25a2 2 0 0 0 2-2V8L14 3.75Zm-.25 1.94L15.56 7.5h-1.81V5.69Z"
+                fill="currentColor" />
+        </symbol>
+    </defs>
+</svg>
+
+<main>
+    <article>
+        <h1>Tree Viewer</h1>
+        <p>API経由でディレクトリをたどり、ツリー表示するサンプルです。(リリースではAPI未対応)</p>
+        <hr>
+
+        <div class="tree-toolbar">
+            <label for="treePathInput">Path</label>
+            <input id="treePathInput" type="text" value="/samples" autocomplete="off" spellcheck="false">
+            <button type="button" class="button" id="treeLoadBtn">Load</button>
+            <button type="button" class="button" id="treeRootBtn">Root</button>
+            <div id="treeStatus" class="tree-status" aria-live="polite">ready</div>
+        </div>
+
+        <div class="tree-layout">
+            <section class="card-o tree-pane">
+                <h2>Tree</h2>
+                <div id="treeHost"></div>
+            </section>
+
+            <section class="card tree-pane">
+                <h2>Info</h2>
+                <div id="treeInfo" class="tree-info">
+                    <p class="tree-muted">左のノードを選択すると詳細が表示されます。</p>
+                </div>
+            </section>
+        </div>
+    </article>
+</main>
+
+<script>
+    (() => {
+        const treeHost = document.getElementById('treeHost');
+        const treeInfo = document.getElementById('treeInfo');
+        const treePathInput = document.getElementById('treePathInput');
+        const treeLoadBtn = document.getElementById('treeLoadBtn');
+        const treeRootBtn = document.getElementById('treeRootBtn');
+        const treeStatus = document.getElementById('treeStatus');
+
+        let selectedPath = '';
+
+        const normalizePath = (raw) => {
+            const base = (raw || '/').trim();
+            if (!base) return '/';
+            const merged = base.replace(/\\+/g, '/').replace(/\/+/g, '/');
+            const withoutTrailing = merged.length > 1 ? merged.replace(/\/+$/, '') : merged;
+            return withoutTrailing.startsWith('/') ? withoutTrailing : `/${withoutTrailing}`;
+        };
+
+        const buildApiUrl = (kind, path) => {
+            const normalized = normalizePath(path);
+            const segments = normalized.split('/').filter(Boolean).map((seg) => encodeURIComponent(seg));
+            const prefix = kind === 'ls' ? '/api/fs/ls' : '/api/fs/stat';
+            if (segments.length === 0) return prefix;
+            return `${prefix}/${segments.join('/')}`;
+        };
+
+        const createIcon = (symbolId) => {
+            const ns = 'http://www.w3.org/2000/svg';
+            const svg = document.createElementNS(ns, 'svg');
+            svg.classList.add('tree-icon');
+            svg.setAttribute('viewBox', '0 0 24 24');
+            svg.setAttribute('aria-hidden', 'true');
+            const use = document.createElementNS(ns, 'use');
+            use.setAttribute('href', `#${symbolId}`);
+            svg.appendChild(use);
+            return svg;
+        };
+
+        const escapeHtml = (value) => String(value)
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#39;');
+
+        const setStatus = (text, isError = false) => {
+            treeStatus.textContent = text;
+            treeStatus.classList.toggle('is-error', isError);
+        };
+
+        const renderInfo = (stat) => {
+            const lines = [];
+            lines.push(`<h3>${escapeHtml(stat.path)}</h3>`);
+            lines.push(`<p class="tree-muted">kind: ${escapeHtml(stat.kind)}</p>`);
+
+            if (stat.title) {
+                lines.push(`<p><strong>title:</strong> ${escapeHtml(stat.title)}</p>`);
+            }
+            if (stat.description) {
+                lines.push(`<p><strong>description:</strong> ${escapeHtml(stat.description)}</p>`);
+            }
+            if (Array.isArray(stat.authors) && stat.authors.length > 0) {
+                lines.push(`<p><strong>authors:</strong> ${escapeHtml(stat.authors.join(', '))}</p>`);
+            }
+            if (Array.isArray(stat.tags) && stat.tags.length > 0) {
+                lines.push(`<p><strong>tags:</strong> ${escapeHtml(stat.tags.join(', '))}</p>`);
+            }
+            if (typeof stat.is_complete === 'boolean') {
+                lines.push(`<p><strong>is_complete:</strong> ${stat.is_complete ? 'true' : 'false'}</p>`);
+            }
+            if (typeof stat.dir_count === 'number' || typeof stat.file_count === 'number') {
+                const d = typeof stat.dir_count === 'number' ? stat.dir_count : 0;
+                const f = typeof stat.file_count === 'number' ? stat.file_count : 0;
+                lines.push(`<p><strong>children:</strong> dirs ${d}, files ${f}</p>`);
+            }
+
+            treeInfo.innerHTML = lines.join('');
+        };
+
+        const updateSelection = () => {
+            const names = treeHost.querySelectorAll('.tree-name[data-path]');
+            names.forEach((button) => {
+                button.classList.toggle('is-selected', button.dataset.path === selectedPath);
+            });
+        };
+
+        const fetchJson = async (url) => {
+            const response = await fetch(url, {
+                headers: {
+                    Accept: 'application/json',
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error(`${response.status} ${response.statusText}`);
+            }
+            return response.json();
+        };
+
+        const fetchLs = (path) => fetchJson(buildApiUrl('ls', path));
+        const fetchStat = (path) => fetchJson(buildApiUrl('stat', path));
+
+        const selectPath = async (path) => {
+            selectedPath = path;
+            updateSelection();
+            try {
+                const stat = await fetchStat(path);
+                renderInfo(stat);
+            } catch (error) {
+                treeInfo.innerHTML = `<p class="tree-muted">stat取得に失敗: ${escapeHtml(error.message)}</p>`;
+            }
+        };
+
+        const makeNode = (entry) => {
+            const li = document.createElement('li');
+            li.className = 'tree-node';
+            li.dataset.kind = entry.kind;
+
+            const row = document.createElement('div');
+            row.className = 'tree-row';
+
+            let childList = null;
+            let loaded = false;
+            let opened = false;
+
+            if (entry.kind === 'dir') {
+                const toggle = document.createElement('button');
+                toggle.type = 'button';
+                toggle.className = 'tree-toggle';
+                toggle.textContent = '▸';
+
+                childList = document.createElement('ul');
+                childList.className = 'tree-children';
+                childList.hidden = true;
+
+                toggle.addEventListener('click', async () => {
+                    if (!loaded) {
+                        loaded = true;
+                        try {
+                            const result = await fetchLs(entry.path);
+                            appendEntries(childList, result.dirs, result.files);
+                            if (childList.children.length === 0) {
+                                const empty = document.createElement('li');
+                                empty.className = 'tree-empty';
+                                empty.textContent = '(empty)';
+                                childList.appendChild(empty);
+                            }
+                        } catch (error) {
+                            const fail = document.createElement('li');
+                            fail.className = 'tree-empty';
+                            fail.textContent = `failed: ${error.message}`;
+                            childList.appendChild(fail);
+                        }
+                    }
+
+                    opened = !opened;
+                    childList.hidden = !opened;
+                    toggle.textContent = opened ? '▾' : '▸';
+                });
+
+                row.appendChild(toggle);
+            } else {
+                const gap = document.createElement('span');
+                gap.className = 'tree-gap';
+                gap.textContent = '·';
+                row.appendChild(gap);
+            }
+
+            row.appendChild(createIcon(entry.kind === 'dir' ? 'tree-icon-folder' : 'tree-icon-file'));
+
+            const nameButton = document.createElement('button');
+            nameButton.type = 'button';
+            nameButton.className = 'tree-name';
+            nameButton.dataset.path = entry.path;
+            nameButton.textContent = entry.name;
+            nameButton.addEventListener('click', () => {
+                selectPath(entry.path);
+            });
+            row.appendChild(nameButton);
+
+            const openLink = document.createElement('a');
+            openLink.href = entry.path;
+            openLink.className = 'button tree-open';
+            openLink.textContent = 'Open';
+            row.appendChild(openLink);
+
+            li.appendChild(row);
+            if (childList) {
+                li.appendChild(childList);
+            }
+            return li;
+        };
+
+        const appendEntries = (target, dirs, files) => {
+            dirs.forEach((entry) => target.appendChild(makeNode(entry)));
+            files.forEach((entry) => target.appendChild(makeNode(entry)));
+        };
+
+        const renderRoot = async (rawPath) => {
+            const rootPath = normalizePath(rawPath);
+            treePathInput.value = rootPath;
+            treeHost.innerHTML = '';
+            setStatus(`loading ${rootPath} ...`);
+
+            const list = document.createElement('ul');
+            list.className = 'tree-list';
+            treeHost.appendChild(list);
+
+            try {
+                const result = await fetchLs(rootPath);
+                appendEntries(list, result.dirs, result.files);
+
+                if (list.children.length === 0) {
+                    const empty = document.createElement('p');
+                    empty.className = 'tree-empty';
+                    empty.textContent = 'このディレクトリは空です。';
+                    treeHost.appendChild(empty);
+                }
+
+                const total = result.dir_count + result.file_count;
+                setStatus(`${rootPath} : ${total} entries`);
+                await selectPath(rootPath);
+            } catch (error) {
+                setStatus(`load failed: ${error.message}`, true);
+                treeInfo.innerHTML = `<p class="tree-muted">読み込みに失敗しました: ${escapeHtml(error.message)}</p>`;
+            }
+        };
+
+        treeLoadBtn.addEventListener('click', () => {
+            renderRoot(treePathInput.value);
+        });
+
+        treeRootBtn.addEventListener('click', () => {
+            renderRoot('/');
+        });
+
+        treePathInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                renderRoot(treePathInput.value);
+            }
+        });
+
+        renderRoot('/samples');
+    })();
+</script>

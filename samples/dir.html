@@ -1,0 +1,368 @@
+---
+title: Directory Viewer Sample
+description: フォルダ一覧をカードで表示するサンプル
+authors:
+- 371tti
+tags:
+- samples
+- directory
+is_complete: false
+---
+
+<style>
+    .dir-toolbar {
+        display: flex;
+        gap: 3mm;
+        align-items: center;
+        flex-wrap: wrap;
+        margin: 6mm 0 5mm;
+    }
+
+    .dir-filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2mm;
+        align-items: center;
+    }
+
+    .dir-filter {
+        margin: 0;
+        padding: 1.2mm 4mm;
+        line-height: 1.2;
+    }
+
+    .dir-filter.active {
+        background: var(--color-accent-0);
+        color: var(--color-text-1);
+        border-color: var(--color-accent-0);
+    }
+
+    .dir-count {
+        margin-left: auto;
+        color: var(--color-text-0);
+        font-size: 0.9rem;
+    }
+
+    .dir-grid {
+        display: grid;
+        gap: 4mm;
+        align-items: stretch;
+    }
+
+    .dir-card {
+        display: grid;
+        gap: 2mm;
+    }
+
+    .dir-card-head {
+        display: grid;
+        grid-template-columns: auto auto minmax(0, 1fr) auto;
+        align-items: center;
+        column-gap: 2mm;
+    }
+
+    .dir-type-icon {
+        width: 1.2rem;
+        height: 1.2rem;
+        display: block;
+        flex-shrink: 0;
+        color: var(--color-text-0);
+    }
+
+    .dir-grid .card .dir-type-icon {
+        color: var(--color-accent-0);
+    }
+
+    .dir-type-icon use {
+        fill: currentColor;
+    }
+
+    .dir-card-tag {
+        font-size: 0.76rem;
+        color: var(--color-text-0);
+        border: 1px solid var(--color-bg-2);
+        width: fit-content;
+        padding: 0.6mm 2mm;
+        justify-self: end;
+    }
+
+    .dir-card h2 {
+        padding: 0;
+        margin: 0;
+        line-height: 1.3;
+        font-size: 1.05em;
+        white-space: nowrap;
+    }
+
+    .dir-card-desc {
+        margin: 0;
+        padding-top: 1.6mm;
+        border-top: 1px solid var(--color-bg-2);
+        color: var(--color-text-0);
+        line-height: 1.55;
+    }
+
+    .dir-card-path {
+        margin: 0;
+        color: var(--color-text-0);
+        font-size: 0.84rem;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        opacity: 0.9;
+    }
+
+    .dir-empty {
+        margin: 4mm 0 0;
+        color: var(--color-text-0);
+    }
+
+    @media (max-width: 900px) {
+        .dir-count {
+            width: 100%;
+            margin-left: 0;
+        }
+    }
+</style>
+
+<svg aria-hidden="true" width="0" height="0" style="position:absolute; width:0; height:0; overflow:hidden;">
+    <defs>
+        <symbol id="dir-icon-folder" viewBox="0 0 24 24">
+            <path d="M10 4H4a2 2 0 0 0-2 2v11a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3V8a2 2 0 0 0-2-2h-8L10 4Z"
+                fill="currentColor" />
+        </symbol>
+        <symbol id="dir-icon-file" viewBox="0 0 24 24">
+            <path
+                d="M14 3.75H7a2 2 0 0 0-2 2V19a2 2 0 0 0 2 2h8.25a2 2 0 0 0 2-2V8L14 3.75Zm-.25 1.94L15.56 7.5h-1.81V5.69Z"
+                fill="currentColor" />
+        </symbol>
+    </defs>
+</svg>
+
+<main>
+    <article>
+        <h1>Directory Viewer</h1>
+        <p>フォルダ一覧をカード形式で確認できるサンプルページです。</p>
+        <hr>
+
+        <div class="dir-toolbar">
+            <div class="dir-filters" role="tablist" aria-label="フォルダカテゴリ">
+                <button type="button" class="button dir-filter active" role="tab" aria-selected="true"
+                    data-filter="all">All</button>
+                <button type="button" class="button dir-filter" role="tab" aria-selected="false"
+                    data-filter="docs">Docs</button>
+                <button type="button" class="button dir-filter" role="tab" aria-selected="false"
+                    data-filter="articles">Articles</button>
+                <button type="button" class="button dir-filter" role="tab" aria-selected="false"
+                    data-filter="profile">Profile</button>
+                <button type="button" class="button dir-filter" role="tab" aria-selected="false"
+                    data-filter="sample">Sample</button>
+                <button type="button" class="button dir-filter" role="tab" aria-selected="false"
+                    data-filter="study">Study</button>
+                <button type="button" class="button dir-filter" role="tab" aria-selected="false"
+                    data-filter="tools">Tools</button>
+            </div>
+            <div id="dirCount" class="dir-count">0件表示</div>
+        </div>
+
+        <div id="dirGrid" class="dir-grid">
+            <a href="/about_this_site" data-kind="docs">
+                <div class="card max dir-card">
+                    <div class="dir-card-head">
+                        <svg class="dir-type-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <use href="#dir-icon-folder"></use>
+                        </svg>
+                        <h2>about_this_site</h2>
+                        <span class="dir-card-path">/about_this_site</span>
+                        <span class="dir-card-tag">Docs</span>
+                    </div>
+                    <p class="dir-card-desc">このサイトの概要、目的、更新方針などをまとめたページ。</p>
+                </div>
+            </a>
+
+            <a href="/article_inbox" data-kind="articles">
+                <div class="card max dir-card">
+                    <div class="dir-card-head">
+                        <svg class="dir-type-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <use href="#dir-icon-folder"></use>
+                        </svg>
+                        <h2>article_inbox</h2>
+                        <span class="dir-card-path">/article_inbox</span>
+                        <span class="dir-card-tag">Articles</span>
+                    </div>
+                    <p class="dir-card-desc">作成中記事や技術メモを管理するフォルダ。</p>
+                </div>
+            </a>
+
+            <a href="/portfolio" data-kind="profile">
+                <div class="card max dir-card">
+                    <div class="dir-card-head">
+                        <svg class="dir-type-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <use href="#dir-icon-folder"></use>
+                        </svg>
+                        <h2>portfolio</h2>
+                        <span class="dir-card-path">/portfolio</span>
+                        <span class="dir-card-tag">Profile</span>
+                    </div>
+                    <p class="dir-card-desc">プロフィール、活動記録、相互リンクをまとめたページ群。</p>
+                </div>
+            </a>
+
+            <a href="/samples" data-kind="sample">
+                <div class="card max dir-card">
+                    <div class="dir-card-head">
+                        <svg class="dir-type-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <use href="#dir-icon-folder"></use>
+                        </svg>
+                        <h2>samples</h2>
+                        <span class="dir-card-path">/samples</span>
+                        <span class="dir-card-tag">Sample</span>
+                    </div>
+                    <p class="dir-card-desc">実験的なページやUI試作、サンプルコンテンツ集。</p>
+                </div>
+            </a>
+
+            <a href="/textbook" data-kind="study">
+                <div class="card max dir-card">
+                    <div class="dir-card-head">
+                        <svg class="dir-type-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <use href="#dir-icon-folder"></use>
+                        </svg>
+                        <h2>textbook</h2>
+                        <span class="dir-card-path">/textbook</span>
+                        <span class="dir-card-tag">Study</span>
+                    </div>
+                    <p class="dir-card-desc">計算機科学・数学などの学習ノートと整理資料。</p>
+                </div>
+            </a>
+
+            <a href="/tools" data-kind="tools">
+                <div class="card max dir-card">
+                    <div class="dir-card-head">
+                        <svg class="dir-type-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <use href="#dir-icon-folder"></use>
+                        </svg>
+                        <h2>tools</h2>
+                        <span class="dir-card-path">/tools</span>
+                        <span class="dir-card-tag">Tools</span>
+                    </div>
+                    <p class="dir-card-desc">画像・エンコード・表示系ユーティリティの公開フォルダ。</p>
+                </div>
+            </a>
+
+            <a href="/index.md" data-kind="docs">
+                <div class="card-o max dir-card">
+                    <div class="dir-card-head">
+                        <svg class="dir-type-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <use href="#dir-icon-file"></use>
+                        </svg>
+                        <h2>index.md</h2>
+                        <span class="dir-card-path">/index.md</span>
+                        <span class="dir-card-tag">Docs</span>
+                    </div>
+                    <p class="dir-card-desc">ルートのトップページMarkdownファイル。</p>
+                </div>
+            </a>
+
+            <a href="/portfolio/index.html" data-kind="profile">
+                <div class="card-o max dir-card">
+                    <div class="dir-card-head">
+                        <svg class="dir-type-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <use href="#dir-icon-file"></use>
+                        </svg>
+                        <h2>index.html</h2>
+                        <span class="dir-card-path">/portfolio/index.html</span>
+                        <span class="dir-card-tag">Profile</span>
+                    </div>
+                    <p class="dir-card-desc">プロフィールページのHTMLエントリファイル。</p>
+                </div>
+            </a>
+
+            <a href="/samples/dir.html" data-kind="sample">
+                <div class="card-o max dir-card">
+                    <div class="dir-card-head">
+                        <svg class="dir-type-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <use href="#dir-icon-file"></use>
+                        </svg>
+                        <h2>dir.html</h2>
+                        <span class="dir-card-path">/samples/dir.html</span>
+                        <span class="dir-card-tag">Sample</span>
+                    </div>
+                    <p class="dir-card-desc">フォルダ一覧表示のUIサンプルファイル。</p>
+                </div>
+            </a>
+
+            <a href="/samples/tree_viewer.html" data-kind="sample">
+                <div class="card-o max dir-card">
+                    <div class="dir-card-head">
+                        <svg class="dir-type-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <use href="#dir-icon-file"></use>
+                        </svg>
+                        <h2>tree_viewer.html</h2>
+                        <span class="dir-card-path">/samples/tree_viewer.html</span>
+                        <span class="dir-card-tag">Sample</span>
+                    </div>
+                    <p class="dir-card-desc">APIで読み込むツリー表示UIのサンプルファイル。</p>
+                </div>
+            </a>
+
+            <a href="/tools/index.html" data-kind="tools">
+                <div class="card-o max dir-card">
+                    <div class="dir-card-head">
+                        <svg class="dir-type-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <use href="#dir-icon-file"></use>
+                        </svg>
+                        <h2>index.html</h2>
+                        <span class="dir-card-path">/tools/index.html</span>
+                        <span class="dir-card-tag">Tools</span>
+                    </div>
+                    <p class="dir-card-desc">公開ツール一覧ページのエントリファイル。</p>
+                </div>
+            </a>
+        </div>
+
+        <p id="dirEmpty" class="dir-empty" hidden>該当するフォルダはありません。</p>
+    </article>
+</main>
+
+<script>
+    (() => {
+        const filterButtons = [...document.querySelectorAll('.dir-filter')];
+        const countEl = document.getElementById('dirCount');
+        const emptyEl = document.getElementById('dirEmpty');
+        const cards = [...document.querySelectorAll('#dirGrid > a')];
+
+        const applyFilter = (filter) => {
+            const activeFilter = filterButtons.some((button) => button.dataset.filter === filter)
+                ? filter
+                : 'all';
+
+            filterButtons.forEach((button) => {
+                const active = button.dataset.filter === activeFilter;
+                button.classList.toggle('active', active);
+                button.setAttribute('aria-selected', active ? 'true' : 'false');
+            });
+
+            let visibleCount = 0;
+
+            cards.forEach((card) => {
+                const kind = card.dataset.kind || '';
+                const visible = activeFilter === 'all' || kind === activeFilter;
+                card.hidden = !visible;
+                if (visible) visibleCount += 1;
+            });
+
+            countEl.textContent = `${visibleCount}件表示`;
+            emptyEl.hidden = visibleCount !== 0;
+        };
+
+        filterButtons.forEach((button) => {
+            button.addEventListener('click', () => {
+                applyFilter(button.dataset.filter || 'all');
+            });
+        });
+
+        applyFilter('all');
+    })();
+</script>

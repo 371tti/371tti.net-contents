@@ -12,7 +12,9 @@ is_complete: true
 ---
 
 このサイトは371ttiが運営する個人サイトであり、目的は情報発信と自己表現です。  
-主に技術的な内容を中心に、様々なトピックについて記事を投稿しています。
+ノリと勢いで個人ブログには過剰な機能をもりもりもりもりしてます  
+主に技術的な内容を中心に、様々なトピックについて記事を投稿しています。  
+コンテンツ部分はgithub上で管理されており、誰でも編集に参加できるのでぜひコントリビュートしてみてね?  
 
 # システムと技術スタック
 
@@ -23,13 +25,14 @@ is_complete: true
 以下はこのサイトの主要な技術スタックと関連プロジェクトです。  
 - web backend server: [371tti@kurosabi](https://github.com/371tti/kurosabi)
 - index and search: [371tti@tf-idf-vectorizer](https://github.com/371tti/tf-idf-vectorizer)
+- session management: [371tti@sv-session](https://github.com/371tti/srv-session)
 - md to html render: [markdown-rs](https://docs.rs/markdown/latest/markdown/)
+- git integration: [gix](https://docs.rs/gix/)
+- morphological analysis: [sudachi-rs](https://github.com/WorksApplications/sudachi.rs)
 
 Rustで開発した理由は以下の通り
-- 低リソース環境で安定した運用が条件だったため。
-- ドキュメントサーバー程度の規模であれば大して複雑ではなく、HTML, CSS, JS, Rustを効率良く活用すればすばらしいものが作れると考えたため。
-- モダンWeb技術はAIの発展で数年サイクルで大きく変化しており、学生として学習期間にある自分にとっては、安定している基礎技術を十分に活用する能力のほうが重要だから。
-- (私のアンチframework, ラブRust精神に基づいて。)
+- 低リソース環境で安定した運用が条件だったため, 鯖が非力でも動くようにしたかった
+- 魔改造, 独自機能をきれいに実装したかったから, 回りくどい実装は嫌ですよね？
 
 # ロードマップ
 今後の予定としては、以下のような機能追加や改善を考えてるけどどうなるかはわからん
