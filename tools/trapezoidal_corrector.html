@@ -365,6 +365,7 @@ is_complete: true
                     <div class="result-actions">
                         <button id="downloadBtn" disabled>PNG保存</button>
                         <button id="sendToEffectorBtn" disabled>Image Effectorへ渡す</button>
+                        <button id="sendToConverterBtn" disabled>Image Converterへ渡す</button>
                     </div>
 
                     <div id="resultMeta" class="meta"></div>
@@ -381,6 +382,7 @@ is_complete: true
         const correctBtn = document.getElementById("correctBtn");
         const downloadBtn = document.getElementById("downloadBtn");
         const sendToEffectorBtn = document.getElementById("sendToEffectorBtn");
+        const sendToConverterBtn = document.getElementById("sendToConverterBtn");
 
         const statusEl = document.getElementById("status");
         const editorWrap = document.getElementById("editorWrap");
@@ -427,6 +429,8 @@ is_complete: true
 
         const IMAGE_EFFECTOR_TARGET_ORIGIN = "https://dev.371tti.net";
         const IMAGE_EFFECTOR_TARGET_URL = `${IMAGE_EFFECTOR_TARGET_ORIGIN}/tools/image_effector.html?from=trapezoidal_corrector`;
+        const IMAGE_CONVERTER_TARGET_ORIGIN = "https://dev.371tti.net";
+        const IMAGE_CONVERTER_TARGET_URL = `${IMAGE_CONVERTER_TARGET_ORIGIN}/tools/image_converter.html?from=trapezoidal_corrector`;
 
         let image = null;
         let imageBitmapRef = null;
@@ -2009,6 +2013,7 @@ is_complete: true
                 resultWrap.classList.remove("empty");
                 downloadBtn.disabled = false;
                 sendToEffectorBtn.disabled = false;
+                sendToConverterBtn.disabled = false;
                 updateResultMeta(outW, outH);
                 lastRenderQuality = usePreview ? "preview" : "high";
 
@@ -2163,6 +2168,114 @@ is_complete: true
             }
         }
 
+        async function sendResultToImageConverter() {
+            if (!image) return;
+
+            const receiverWindow = window.open(IMAGE_CONVERTER_TARGET_URL, "_blank");
+            if (!receiverWindow) {
+                setStatus("Image Converter を開けませんでした。ポップアップブロックを確認してください");
+                return;
+            }
+
+            sendToConverterBtn.disabled = true;
+            let waitingForAck = false;
+
+            try {
+                if (!resultCanvas.width || !resultCanvas.height || lastRenderQuality !== "high") {
+                    await correctPerspective({ quality: "high", interactive: false, updateStatus: true });
+                }
+
+                const blob = await new Promise(resolve => {
+                    resultCanvas.toBlob(resolve, "image/png");
+                });
+
+                if (!blob) {
+                    setStatus("転送用データの生成に失敗しました");
+                    return;
+                }
+
+                const transferId = `tcv-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+                const payload = {
+                    type: "image-converter-import",
+                    id: transferId,
+                    source: "trapezoidal_corrector",
+                    fileName: buildCorrectedFileName("trapezoid_corrected"),
+                    mimeType: "image/png",
+                    width: resultCanvas.width,
+                    height: resultCanvas.height,
+                    blob,
+                };
+
+                let finished = false;
+                const startedAt = Date.now();
+                const timeoutMs = 16000;
+                let timer = null;
+
+                const postPayload = () => {
+                    try {
+                        receiverWindow.postMessage(payload, IMAGE_CONVERTER_TARGET_ORIGIN);
+                        return true;
+                    } catch (error) {
+                        console.error(error);
+                        return false;
+                    }
+                };
+
+                const cleanup = () => {
+                    window.removeEventListener("message", onMessage);
+                    if (timer) {
+                        clearInterval(timer);
+                        timer = null;
+                    }
+                    waitingForAck = false;
+                    sendToConverterBtn.disabled = false;
+                };
+
+                const onMessage = event => {
+                    if (event.origin !== IMAGE_CONVERTER_TARGET_ORIGIN) return;
+                    if (event.source !== receiverWindow) return;
+
+                    const data = event.data;
+
+                    if (data?.type === "image-converter-receiver-ready") {
+                        postPayload();
+                        return;
+                    }
+
+                    if (data?.type === "image-converter-import-ack" && data?.id === transferId) {
+                        finished = true;
+                        cleanup();
+                        setStatus("Image Converter へ画像を渡しました");
+                    }
+                };
+
+                window.addEventListener("message", onMessage);
+                waitingForAck = true;
+
+                timer = setInterval(() => {
+                    if (finished) return;
+
+                    if (Date.now() - startedAt > timeoutMs) {
+                        cleanup();
+                        setStatus("Image Converter への転送がタイムアウトしました。タブを再読み込みして再実行してください");
+                        return;
+                    }
+
+                    postPayload();
+                }, 380);
+
+                postPayload();
+                setStatus("Image Converter へ転送中...");
+            } catch (error) {
+                console.error(error);
+                setStatus("Image Converter への転送に失敗しました");
+            } finally {
+                if (!waitingForAck) {
+                    sendToConverterBtn.disabled = false;
+                }
+            }
+        }
+
         async function loadFile(file) {
             if (!file) return;
 
@@ -2206,6 +2319,7 @@ is_complete: true
                 correctBtn.disabled = false;
                 downloadBtn.disabled = true;
                 sendToEffectorBtn.disabled = true;
+                sendToConverterBtn.disabled = true;
 
                 analyzeEdges();
 
@@ -2237,6 +2351,7 @@ is_complete: true
         });
         downloadBtn.addEventListener("click", downloadResult);
         sendToEffectorBtn.addEventListener("click", sendResultToImageEffector);
+        sendToConverterBtn.addEventListener("click", sendResultToImageConverter);
 
         selectedHandleSelect.addEventListener("change", () => {
             setSelectedHandle(Number(selectedHandleSelect.value));

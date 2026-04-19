@@ -91,11 +91,6 @@ is_complete: true
                         <span>ファイルを選択</span>
                         <input id="image-file" type="file" accept="image/*">
                     </label><br>
-                    <label class="block" style="min-width: 260px; gap: 0.5rem;">
-                        <span>画像URL</span>
-                        <input id="image-url" type="url" placeholder="https://example.com/image.png">
-                    </label>
-                    <a id="load-url" class="button" href="#" style="align-self: flex-end;">URL を読み込む</a>
                     <a id="reset-image" class="button" href="#" style="align-self: flex-end;">画像をリセット</a>
                 </div>
                 <small id="image-meta" style="display: block; margin-top: 0.5rem;">画像は読み込まれていません</small>
@@ -160,6 +155,7 @@ is_complete: true
                     <a id="apply-effects" class="button" href="#">処理を実行 (プレビュー更新)</a>
                     <a id="download-result" class="button" href="#">結果をダウンロード</a>
                     <a id="write-back" class="button" href="#">結果を書き戻す</a>
+                    <a id="send-to-converter" class="button" href="#">Image Converterへ渡す</a>
                 </div>
                 <div id="status" style="margin-top: 1rem; color: var(--color-text-0);">画像を読み込んでエフェクトを設定してください。</div>
             </div>
@@ -251,8 +247,6 @@ is_complete: true
 
         const elements = {
             fileInput: document.getElementById('image-file'),
-            urlInput: document.getElementById('image-url'),
-            loadUrlLink: document.getElementById('load-url'),
             resetLink: document.getElementById('reset-image'),
             imageMeta: document.getElementById('image-meta'),
             effectNodes: document.getElementById('effect-nodes'),
@@ -266,6 +260,7 @@ is_complete: true
             applyEffects: document.getElementById('apply-effects'),
             downloadResult: document.getElementById('download-result'),
             writeBack: document.getElementById('write-back'),
+            sendToConverter: document.getElementById('send-to-converter'),
             outputFormat: document.getElementById('output-format'),
             jpegQualityRow: document.getElementById('jpeg-quality-row'),
             jpegQuality: document.getElementById('jpeg-quality'),
@@ -280,6 +275,8 @@ is_complete: true
         const tempCanvas = document.createElement('canvas');
         const tempCtx = tempCanvas.getContext('2d');
         const ALLOWED_KERNEL_SIZES = [3, 5, 7];
+        const IMAGE_CONVERTER_TARGET_ORIGIN = 'https://dev.371tti.net';
+        const IMAGE_CONVERTER_TARGET_URL = `${IMAGE_CONVERTER_TARGET_ORIGIN}/tools/image_converter.html?from=image_effector`;
 
         function createIdentityKernel(size) {
             const total = size * size;
@@ -444,31 +441,14 @@ is_complete: true
             });
         }
 
-        function loadImageFromUrl(url) {
-            if (!url) return;
-            setStatus('画像を取得中...', true);
-            fetch(url, { mode: 'cors' })
-                .then((response) => {
-                    if (!response.ok) throw new Error('Fetch failed');
-                    return response.blob();
-                })
-                .then(createImageBitmap)
-                .then((bitmap) => {
-                    setSourceBitmap(bitmap, url, pickFileNameLikeText(url) || 'image');
-                    setStatus('画像を読み込みました。', true);
-                })
-                .catch((error) => {
-                    console.error(error);
-                    setStatus('画像URLの読み込みに失敗しました。CORSポリシーに注意してください。', false);
-                });
-        }
-
         function setSourceBitmap(bitmap, label, preferredStem) {
             state.sourceBitmap = bitmap;
             state.sourceLabel = label || '画像';
             const stemSource = preferredStem || pickFileNameLikeText(state.sourceLabel) || state.sourceFileStem;
             state.sourceFileStem = normalizeFileStem(stemSource);
             updateImageMeta(state.sourceLabel);
+            elements.sendToConverter.style.pointerEvents = '';
+            elements.sendToConverter.style.opacity = '';
             schedulePreviewRender();
         }
 
@@ -480,6 +460,8 @@ is_complete: true
             elements.sourceCanvas.height = 0;
             elements.resultCanvas.width = 0;
             elements.resultCanvas.height = 0;
+            elements.sendToConverter.style.pointerEvents = 'none';
+            elements.sendToConverter.style.opacity = '0.55';
             updateImageMeta('');
             setStatus('画像を読み込んでエフェクトを設定してください。', true);
         }
@@ -2071,6 +2053,127 @@ is_complete: true
             }
         }
 
+        async function sendResultToImageConverter() {
+            if (!state.sourceBitmap) {
+                setStatus('先に画像を読み込んでください。', false);
+                return;
+            }
+
+            const receiverWindow = window.open(IMAGE_CONVERTER_TARGET_URL, '_blank');
+            if (!receiverWindow) {
+                setStatus('Image Converter を開けませんでした。ポップアップブロックを確認してください。', false);
+                return;
+            }
+
+            elements.sendToConverter.style.pointerEvents = 'none';
+            elements.sendToConverter.style.opacity = '0.65';
+            const originalLabel = elements.sendToConverter.textContent;
+            elements.sendToConverter.textContent = '転送中...';
+
+            let waitingForAck = false;
+
+            try {
+                const canvas = buildOutputCanvas();
+                if (!canvas) {
+                    setStatus('転送用データの生成に失敗しました。', false);
+                    return;
+                }
+
+                const blob = await new Promise((resolve) => {
+                    canvas.toBlob(resolve, 'image/png');
+                });
+
+                if (!blob) {
+                    setStatus('転送用データの生成に失敗しました。', false);
+                    return;
+                }
+
+                const transferId = `iec-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+                const payload = {
+                    type: 'image-converter-import',
+                    id: transferId,
+                    source: 'image_effector',
+                    fileName: buildEffectorOutputFileName('png'),
+                    mimeType: 'image/png',
+                    width: canvas.width,
+                    height: canvas.height,
+                    blob,
+                };
+
+                let finished = false;
+                const startedAt = Date.now();
+                const timeoutMs = 16000;
+                let timer = null;
+
+                const postPayload = () => {
+                    try {
+                        receiverWindow.postMessage(payload, IMAGE_CONVERTER_TARGET_ORIGIN);
+                        return true;
+                    } catch (error) {
+                        console.error(error);
+                        return false;
+                    }
+                };
+
+                const cleanup = () => {
+                    window.removeEventListener('message', onMessage);
+                    if (timer) {
+                        clearInterval(timer);
+                        timer = null;
+                    }
+                    waitingForAck = false;
+                    elements.sendToConverter.style.pointerEvents = '';
+                    elements.sendToConverter.style.opacity = '';
+                    elements.sendToConverter.textContent = originalLabel;
+                };
+
+                const onMessage = (event) => {
+                    if (event.origin !== IMAGE_CONVERTER_TARGET_ORIGIN) return;
+                    if (event.source !== receiverWindow) return;
+
+                    const data = event.data;
+
+                    if (data?.type === 'image-converter-receiver-ready') {
+                        postPayload();
+                        return;
+                    }
+
+                    if (data?.type === 'image-converter-import-ack' && data?.id === transferId) {
+                        finished = true;
+                        cleanup();
+                        setStatus('Image Converter へ画像を渡しました。', true);
+                    }
+                };
+
+                window.addEventListener('message', onMessage);
+                waitingForAck = true;
+
+                timer = setInterval(() => {
+                    if (finished) return;
+
+                    if (Date.now() - startedAt > timeoutMs) {
+                        cleanup();
+                        setStatus('Image Converter への転送がタイムアウトしました。タブを再読み込みして再実行してください。', false);
+                        return;
+                    }
+
+                    postPayload();
+                }, 380);
+
+                postPayload();
+                setStatus('Image Converter へ転送中...', true);
+            } catch (error) {
+                console.error(error);
+                setStatus('Image Converter への転送に失敗しました。', false);
+            } finally {
+                if (!waitingForAck) {
+                    elements.sendToConverter.style.pointerEvents = '';
+                    elements.sendToConverter.style.opacity = '';
+                    elements.sendToConverter.textContent = originalLabel;
+                }
+            }
+        }
+
         function updatePreviewScaleLabel() {
             elements.previewScaleValue.textContent = `${elements.previewScale.value}%`;
         }
@@ -2271,24 +2374,6 @@ is_complete: true
                 }
             });
 
-            elements.loadUrlLink.addEventListener('click', (event) => {
-                event.preventDefault();
-                const url = elements.urlInput.value.trim();
-                if (url) {
-                    loadImageFromUrl(url);
-                }
-            });
-
-            elements.urlInput.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter') {
-                    event.preventDefault();
-                    const url = elements.urlInput.value.trim();
-                    if (url) {
-                        loadImageFromUrl(url);
-                    }
-                }
-            });
-
             elements.resetLink.addEventListener('click', (event) => {
                 event.preventDefault();
                 resetImage();
@@ -2332,6 +2417,11 @@ is_complete: true
                 writeBack();
             });
 
+            elements.sendToConverter.addEventListener('click', (event) => {
+                event.preventDefault();
+                sendResultToImageConverter();
+            });
+
             elements.outputFormat.addEventListener('change', () => {
                 updateOutputControls();
             });
@@ -2348,6 +2438,8 @@ is_complete: true
             updatePreviewScaleLabel();
             updateOutputControls();
             updateJpegQualityLabel();
+            elements.sendToConverter.style.pointerEvents = 'none';
+            elements.sendToConverter.style.opacity = '0.55';
             renderNodes();
         }
 

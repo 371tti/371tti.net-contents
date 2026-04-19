@@ -1,0 +1,1655 @@
+---
+title: Image Converter
+description: 画像の圧縮、サイズ変更、フォーマット変換を行うツール
+authors:
+- 371tti
+tags:
+- tools
+- image-processing
+- converter
+is_complete: true
+---
+
+<style>
+    .converter-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        align-items: flex-end;
+    }
+
+    .converter-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+    }
+
+    .converter-grid>div {
+        min-width: 0;
+    }
+
+    .convert-settings {
+        display: grid;
+        gap: 0.8rem;
+    }
+
+    .setting-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.8rem;
+        align-items: center;
+    }
+
+    .setting-row input[type="number"] {
+        width: 6.5rem;
+    }
+
+    .setting-card {
+        border: 1px solid var(--color-bg-2);
+        padding: 0.9rem;
+        display: grid;
+        gap: 0.7rem;
+    }
+
+    .setting-title {
+        font-size: 0.95rem;
+        font-weight: 600;
+    }
+
+    .mini-label {
+        font-size: 0.86rem;
+        color: var(--color-text-0);
+    }
+
+    .preview-pane {
+        display: grid;
+        gap: 0.5rem;
+    }
+
+    .preview-pane canvas {
+        width: 100%;
+        max-width: 560px;
+        height: auto;
+        border: 1px solid var(--color-bg-2);
+        background: var(--color-bg-1);
+    }
+
+    .image-selector {
+        margin-top: 0.8rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.8rem;
+        align-items: center;
+    }
+
+    .image-selector select {
+        min-width: 260px;
+        max-width: 100%;
+    }
+
+    #pixel-controls,
+    #percent-controls {
+        display: grid;
+        gap: 0.6rem;
+    }
+
+    #pixel-controls[hidden],
+    #percent-controls[hidden] {
+        display: none;
+    }
+
+    @media (max-width: 980px) {
+        .converter-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<main>
+    <div id="content">
+        <h1>Image Converter</h1>
+
+        <p style="color: var(--color-text-0); margin-bottom: 1.5rem;">
+            画像の圧縮、サイズ変更、フォーマット変換をまとめて行うツールです。<br>
+            ちょっとあとで WASM lib 自前で用意します(重い)
+        </p>
+
+        <div class="box">
+            <h2 class="h">入力画像</h2>
+            <div class="indent">
+                <div class="converter-toolbar">
+                    <label class="block" style="min-width: 220px; gap: 0.5rem;">
+                        <span>ファイルを選択</span>
+                        <input id="image-file" type="file" accept="image/*" multiple>
+                    </label>
+                    <a id="reset-image" class="button" href="#">現在画像を削除</a>
+                    <a id="clear-images" class="button" href="#">全画像を削除</a>
+                </div>
+                <div class="image-selector">
+                    <label class="block" style="min-width: 300px; gap: 0.4rem;">
+                        <span>読み込み画像</span>
+                        <select id="image-list"></select>
+                    </label>
+                    <small id="image-count" class="mini-label">0枚読み込み済み</small>
+                </div>
+                <small id="image-meta" style="display: block; margin-top: 0.5rem;">画像は読み込まれていません</small>
+            </div>
+        </div>
+
+        <div class="box" style="margin-top: 2rem;">
+            <h2 class="h">変換設定</h2>
+            <div class="indent convert-settings">
+                <div class="setting-card">
+                    <span class="setting-title">サイズ変更</span>
+                    <div class="setting-row">
+                        <label class="block" style="min-width: 220px; gap: 0.5rem;">
+                            <span>変更モード</span>
+                            <select id="resize-mode">
+                                <option value="original">変更しない</option>
+                                <option value="percent">比率 (%)</option>
+                                <option value="pixel">ピクセル (px)</option>
+                            </select>
+                        </label>
+                        <label class="block" style="gap: 0.5rem; min-width: 200px;">
+                            <span>縦横比</span>
+                            <label style="display: inline-flex; align-items: center; gap: 0.4rem;">
+                                <input id="keep-aspect" type="checkbox" checked>
+                                維持する
+                            </label>
+                        </label>
+                        <label class="block" style="min-width: 200px; gap: 0.5rem;">
+                            <span>リサイズ補間</span>
+                            <select id="resize-quality">
+                                <option value="high">高品質</option>
+                                <option value="medium">標準</option>
+                                <option value="low">軽め</option>
+                                <option value="off">最近傍 (補間なし)</option>
+                            </select>
+                        </label>
+                    </div>
+
+                    <div id="percent-controls">
+                        <div class="setting-row">
+                            <label class="block" style="gap: 0.4rem;">
+                                <span>横方向 (%)</span>
+                                <input id="width-percent" type="number" min="1" max="1000" step="1" value="100">
+                            </label>
+                            <label class="block" style="gap: 0.4rem;">
+                                <span>縦方向 (%)</span>
+                                <input id="height-percent" type="number" min="1" max="1000" step="1" value="100">
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="pixel-controls" hidden>
+                        <div class="setting-row">
+                            <label class="block" style="gap: 0.4rem;">
+                                <span>横幅 (px)</span>
+                                <input id="width-px" type="number" min="1" max="20000" step="1" value="1920">
+                            </label>
+                            <label class="block" style="gap: 0.4rem;">
+                                <span>縦幅 (px)</span>
+                                <input id="height-px" type="number" min="1" max="20000" step="1" value="1080">
+                            </label>
+                        </div>
+                    </div>
+
+                    <small class="mini-label" id="resize-hint">現在の入力サイズ: 未読み込み</small>
+                </div>
+
+                <div class="setting-card">
+                    <span class="setting-title">圧縮とフォーマット</span>
+                    <div class="setting-row">
+                        <label class="block" style="min-width: 220px; gap: 0.5rem;">
+                            <span>出力フォーマット</span>
+                            <select id="output-format">
+                                <option value="png">PNG (可逆)</option>
+                                <option value="jpeg">JPEG (非可逆)</option>
+                                <option value="webp">WebP (非可逆)</option>
+                            </select>
+                        </label>
+                        <label id="quality-row" class="block" style="min-width: 240px; gap: 0.5rem;">
+                            <span>品質 (%)</span>
+                            <div class="setting-row" style="gap: 0.6rem;">
+                                <input id="quality" type="range" min="10" max="100" value="88">
+                                <input id="quality-number" type="number" min="10" max="100" step="1" value="88">
+                                <small id="quality-value">88%</small>
+                            </div>
+                        </label>
+                        <label id="color-depth-row" class="block" style="min-width: 240px; gap: 0.5rem;">
+                            <span>色深度 (bit/チャンネル)</span>
+                            <div class="setting-row" style="gap: 0.6rem;">
+                                <input id="color-depth" type="range" min="1" max="8" step="1" value="8">
+                                <input id="color-depth-number" type="number" min="1" max="8" step="1" value="8">
+                                <small id="color-depth-value">8bit</small>
+                            </div>
+                        </label>
+                    </div>
+                    <small class="mini-label">PNG は可逆圧縮のため品質指定は不要です。JPEG/WebP は品質を下げるほど軽量化できます。</small>
+                    <small class="mini-label">色深度は出力前の量子化で、ファイル形式のビット深度自体は変わりません。</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="box" style="margin-top: 2rem;">
+            <h2 class="h">プレビューと出力</h2>
+            <div class="indent">
+                <div class="converter-grid">
+                    <div class="preview-pane">
+                        <h3 style="margin-bottom: 0.3rem;">入力プレビュー</h3>
+                        <canvas id="source-canvas"></canvas>
+                        <small id="source-size" class="mini-label">-</small>
+                    </div>
+                    <div class="preview-pane">
+                        <h3 style="margin-bottom: 0.3rem;">出力プレビュー</h3>
+                        <canvas id="result-canvas"></canvas>
+                        <small id="result-size" class="mini-label">-</small>
+                    </div>
+                </div>
+
+                <div class="flex" style="gap: 1rem; flex-wrap: wrap; margin-top: 1.2rem;">
+                    <a id="refresh-preview" class="button" href="#">プレビューを更新</a>
+                    <a id="download-result" class="button" href="#">結果をダウンロード</a>
+                    <a id="download-all-results" class="button" href="#">全画像を一括ダウンロード (ZIP)</a>
+                    <a id="write-back" class="button" href="#">結果を書き戻す</a>
+                </div>
+
+                <div id="status" style="margin-top: 1rem; color: var(--color-text-0);">画像を読み込んで設定してください。</div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+    (() => {
+        const PREVIEW_MAX_EDGE = 1500;
+        const FAST_PREVIEW_MIN_EDGE = 1100;
+        const PREVIEW_DEBOUNCE_MS = 120;
+        const SITE_TARGET_ORIGIN = 'https://dev.371tti.net';
+        const JSQUASH_CDN = 'https://esm.sh';
+        const JSQUASH_RESIZE = `${JSQUASH_CDN}/@jsquash/resize`;
+        const JSQUASH_JPEG = `${JSQUASH_CDN}/@jsquash/jpeg`;
+        const JSQUASH_WEBP = `${JSQUASH_CDN}/@jsquash/webp`;
+        const JSQUASH_PNG = `${JSQUASH_CDN}/@jsquash/png`;
+
+        const state = {
+            images: [],
+            currentIndex: -1,
+            nextImageId: 1,
+            pendingRender: null,
+            resizeAnchor: 'width',
+            estimateToken: 0,
+            previewToken: 0,
+            isBatchProcessing: false,
+            accurateSizeTimer: null,
+            accurateSizeToken: 0,
+        };
+
+        const elements = {
+            fileInput: document.getElementById('image-file'),
+            resetLink: document.getElementById('reset-image'),
+            clearImagesLink: document.getElementById('clear-images'),
+            imageList: document.getElementById('image-list'),
+            imageCount: document.getElementById('image-count'),
+            imageMeta: document.getElementById('image-meta'),
+            resizeMode: document.getElementById('resize-mode'),
+            keepAspect: document.getElementById('keep-aspect'),
+            resizeQuality: document.getElementById('resize-quality'),
+            widthPercent: document.getElementById('width-percent'),
+            heightPercent: document.getElementById('height-percent'),
+            widthPx: document.getElementById('width-px'),
+            heightPx: document.getElementById('height-px'),
+            percentControls: document.getElementById('percent-controls'),
+            pixelControls: document.getElementById('pixel-controls'),
+            resizeHint: document.getElementById('resize-hint'),
+            outputFormat: document.getElementById('output-format'),
+            qualityRow: document.getElementById('quality-row'),
+            quality: document.getElementById('quality'),
+            qualityNumber: document.getElementById('quality-number'),
+            qualityValue: document.getElementById('quality-value'),
+            colorDepthRow: document.getElementById('color-depth-row'),
+            colorDepth: document.getElementById('color-depth'),
+            colorDepthNumber: document.getElementById('color-depth-number'),
+            colorDepthValue: document.getElementById('color-depth-value'),
+            sourceCanvas: document.getElementById('source-canvas'),
+            resultCanvas: document.getElementById('result-canvas'),
+            sourceSize: document.getElementById('source-size'),
+            resultSize: document.getElementById('result-size'),
+            refreshPreview: document.getElementById('refresh-preview'),
+            downloadResult: document.getElementById('download-result'),
+            downloadAllResults: document.getElementById('download-all-results'),
+            writeBack: document.getElementById('write-back'),
+            status: document.getElementById('status'),
+        };
+
+        const sourceCtx = elements.sourceCanvas.getContext('2d');
+        const resultCtx = elements.resultCanvas.getContext('2d');
+        const wasmCanvas = document.createElement('canvas');
+        const wasmCtx = wasmCanvas.getContext('2d', { willReadFrequently: true });
+
+        let wasmToolsPromise = null;
+
+        function clamp(value, min, max) {
+            return Math.min(max, Math.max(min, value));
+        }
+
+        function getFastPreviewMaxEdge() {
+            const sourceW = elements.sourceCanvas?.clientWidth || 0;
+            const sourceH = elements.sourceCanvas?.clientHeight || 0;
+            const resultW = elements.resultCanvas?.clientWidth || 0;
+            const resultH = elements.resultCanvas?.clientHeight || 0;
+            const base = Math.max(sourceW, sourceH, resultW, resultH, 520);
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            const scaled = Math.round(base * dpr * 1.5);
+            return clamp(scaled, FAST_PREVIEW_MIN_EDGE, PREVIEW_MAX_EDGE);
+        }
+
+        function setStatus(message, ok = true) {
+            elements.status.textContent = message;
+            elements.status.style.color = ok ? 'var(--color-text-0)' : 'var(--alert-color-0, #ff5f5f)';
+        }
+
+        function closeImageBitmap(bitmap) {
+            if (!bitmap || typeof bitmap.close !== 'function') return;
+            try {
+                bitmap.close();
+            } catch (_) {
+            }
+        }
+
+        function getCurrentImage() {
+            if (state.currentIndex < 0 || state.currentIndex >= state.images.length) {
+                return null;
+            }
+            return state.images[state.currentIndex];
+        }
+
+        function getCurrentBitmap() {
+            return getCurrentImage()?.bitmap || null;
+        }
+
+        function normalizeFileStem(fileName) {
+            if (typeof fileName !== 'string') return 'image';
+
+            const noExt = fileName.replace(/\.[^.]+$/, '').trim();
+            const sanitized = noExt
+                .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_')
+                .replace(/\s+/g, '_')
+                .replace(/_+/g, '_')
+                .replace(/^[_\.]+|[_\.]+$/g, '');
+
+            return sanitized || 'image';
+        }
+
+        function pickFileNameLikeText(label) {
+            if (typeof label !== 'string') return '';
+            const trimmed = label.trim();
+            if (!trimmed) return '';
+
+            try {
+                const parsed = new URL(trimmed);
+                const segments = (parsed.pathname || '').split('/').filter(Boolean);
+                const last = segments[segments.length - 1] || '';
+                return decodeURIComponent(last || '');
+            } catch (_) {
+                return trimmed;
+            }
+        }
+
+        function buildOutputFileName(ext, item) {
+            const safeExt = ext === 'jpeg' ? 'jpg' : ext;
+            const stem = item?.fileStem || 'image';
+            return `${stem}_converted.${safeExt}`;
+        }
+
+        function formatBytes(bytes) {
+            if (!Number.isFinite(bytes) || bytes < 0) return '-';
+            if (bytes >= 1024 * 1024) {
+                return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+            }
+            return `${(bytes / 1024).toFixed(1)} KB`;
+        }
+
+        function canvasToBlob(canvas, mimeType, quality) {
+            return new Promise((resolve) => {
+                canvas.toBlob((blob) => resolve(blob), mimeType, quality);
+            });
+        }
+
+        async function loadWasmTools() {
+            if (!wasmToolsPromise) {
+                wasmToolsPromise = Promise.all([
+                    import(JSQUASH_RESIZE),
+                    import(JSQUASH_JPEG),
+                    import(JSQUASH_WEBP),
+                    import(JSQUASH_PNG),
+                ]).then(([resizeMod, jpegMod, webpMod, pngMod]) => ({
+                    resize: resizeMod.default,
+                    encodeJpeg: jpegMod.encode,
+                    encodeWebp: webpMod.encode,
+                    encodePng: pngMod.encode,
+                }));
+            }
+            return wasmToolsPromise;
+        }
+
+        function getResizeMethod() {
+            switch (elements.resizeQuality.value) {
+                case 'high':
+                    return 'lanczos3';
+                case 'medium':
+                    return 'mitchell';
+                case 'low':
+                    return 'triangle';
+                default:
+                    return 'triangle';
+            }
+        }
+
+        function getEncoderQuality() {
+            return clampInt(elements.quality.value, 10, 100);
+        }
+
+        function bitmapToImageData(bitmap, width, height, smoothing) {
+            const w = Math.max(1, Math.round(width));
+            const h = Math.max(1, Math.round(height));
+            wasmCanvas.width = w;
+            wasmCanvas.height = h;
+            wasmCtx.imageSmoothingEnabled = smoothing;
+            wasmCtx.imageSmoothingQuality = smoothing ? 'high' : 'low';
+            wasmCtx.clearRect(0, 0, w, h);
+            wasmCtx.drawImage(bitmap, 0, 0, w, h);
+            return wasmCtx.getImageData(0, 0, w, h);
+        }
+
+        async function buildOutputImageData(item, targetWidth, targetHeight) {
+            const bitmap = item?.bitmap;
+            if (!bitmap) return null;
+
+            if (elements.resizeQuality.value === 'off') {
+                return bitmapToImageData(bitmap, targetWidth, targetHeight, false);
+            }
+
+            const base = bitmapToImageData(bitmap, bitmap.width, bitmap.height, true);
+            if (targetWidth === bitmap.width && targetHeight === bitmap.height) {
+                return base;
+            }
+
+            const { resize } = await loadWasmTools();
+            return resize(base, {
+                width: targetWidth,
+                height: targetHeight,
+                method: getResizeMethod(),
+                premultiply: true,
+                linearRGB: false,
+            });
+        }
+
+        function clampInt(value, min, max) {
+            const raw = Number.parseInt(value, 10);
+            if (!Number.isFinite(raw)) return min;
+            return clamp(raw, min, max);
+        }
+
+        function setQuality(value, trigger = false) {
+            const next = clampInt(value, 10, 100);
+            elements.quality.value = `${next}`;
+            elements.qualityNumber.value = `${next}`;
+            elements.qualityValue.textContent = `${next}%`;
+            if (trigger) {
+                schedulePreviewRender({ mode: 'fast' });
+            }
+        }
+
+        function setColorDepth(value, trigger = false) {
+            const next = clampInt(value, 1, 8);
+            elements.colorDepth.value = `${next}`;
+            elements.colorDepthNumber.value = `${next}`;
+            elements.colorDepthValue.textContent = `${next}bit`;
+            if (trigger) {
+                schedulePreviewRender({ mode: 'fast' });
+            }
+        }
+
+        function setActionButtonsEnabled(enabled) {
+            const value = enabled ? '' : 'none';
+            const opacity = enabled ? '' : '0.55';
+            [elements.downloadResult, elements.downloadAllResults, elements.writeBack].forEach((anchor) => {
+                if (!anchor) return;
+                anchor.style.pointerEvents = value;
+                anchor.style.opacity = opacity;
+            });
+        }
+
+        function createCrc32Table() {
+            const table = new Uint32Array(256);
+            for (let i = 0; i < 256; i += 1) {
+                let c = i;
+                for (let k = 0; k < 8; k += 1) {
+                    c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+                }
+                table[i] = c >>> 0;
+            }
+            return table;
+        }
+
+        const CRC32_TABLE = createCrc32Table();
+
+        function crc32(bytes) {
+            let crc = 0xFFFFFFFF;
+            for (let i = 0; i < bytes.length; i += 1) {
+                const idx = (crc ^ bytes[i]) & 0xFF;
+                crc = (crc >>> 8) ^ CRC32_TABLE[idx];
+            }
+            return (crc ^ 0xFFFFFFFF) >>> 0;
+        }
+
+        function toDosDateTime(date) {
+            const year = Math.max(1980, date.getFullYear());
+            const month = date.getMonth() + 1;
+            const day = date.getDate();
+            const hours = date.getHours();
+            const minutes = date.getMinutes();
+            const seconds = Math.floor(date.getSeconds() / 2);
+
+            const dosDate = ((year - 1980) << 9) | (month << 5) | day;
+            const dosTime = (hours << 11) | (minutes << 5) | seconds;
+            return { dosDate, dosTime };
+        }
+
+        function joinUint8Arrays(chunks) {
+            const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+            const output = new Uint8Array(totalLength);
+            let offset = 0;
+            chunks.forEach((chunk) => {
+                output.set(chunk, offset);
+                offset += chunk.length;
+            });
+            return output;
+        }
+
+        async function buildZipBlob(entries) {
+            const encoder = new TextEncoder();
+            const localChunks = [];
+            const centralChunks = [];
+            let localOffset = 0;
+            const now = new Date();
+            const { dosDate, dosTime } = toDosDateTime(now);
+
+            for (const entry of entries) {
+                const fileNameBytes = encoder.encode(entry.name);
+                const fileBytes = new Uint8Array(await entry.blob.arrayBuffer());
+                const crc = crc32(fileBytes);
+
+                const localHeader = new Uint8Array(30 + fileNameBytes.length);
+                const localView = new DataView(localHeader.buffer);
+
+                localView.setUint32(0, 0x04034B50, true);
+                localView.setUint16(4, 20, true);
+                localView.setUint16(6, 0x0800, true);
+                localView.setUint16(8, 0, true);
+                localView.setUint16(10, dosTime, true);
+                localView.setUint16(12, dosDate, true);
+                localView.setUint32(14, crc, true);
+                localView.setUint32(18, fileBytes.length, true);
+                localView.setUint32(22, fileBytes.length, true);
+                localView.setUint16(26, fileNameBytes.length, true);
+                localView.setUint16(28, 0, true);
+                localHeader.set(fileNameBytes, 30);
+
+                localChunks.push(localHeader, fileBytes);
+
+                const centralHeader = new Uint8Array(46 + fileNameBytes.length);
+                const centralView = new DataView(centralHeader.buffer);
+                centralView.setUint32(0, 0x02014B50, true);
+                centralView.setUint16(4, 20, true);
+                centralView.setUint16(6, 20, true);
+                centralView.setUint16(8, 0x0800, true);
+                centralView.setUint16(10, 0, true);
+                centralView.setUint16(12, dosTime, true);
+                centralView.setUint16(14, dosDate, true);
+                centralView.setUint32(16, crc, true);
+                centralView.setUint32(20, fileBytes.length, true);
+                centralView.setUint32(24, fileBytes.length, true);
+                centralView.setUint16(28, fileNameBytes.length, true);
+                centralView.setUint16(30, 0, true);
+                centralView.setUint16(32, 0, true);
+                centralView.setUint16(34, 0, true);
+                centralView.setUint16(36, 0, true);
+                centralView.setUint32(38, 0, true);
+                centralView.setUint32(42, localOffset, true);
+                centralHeader.set(fileNameBytes, 46);
+
+                centralChunks.push(centralHeader);
+                localOffset += localHeader.length + fileBytes.length;
+            }
+
+            const centralDirectory = joinUint8Arrays(centralChunks);
+            const localFiles = joinUint8Arrays(localChunks);
+
+            const eocd = new Uint8Array(22);
+            const eocdView = new DataView(eocd.buffer);
+            eocdView.setUint32(0, 0x06054B50, true);
+            eocdView.setUint16(4, 0, true);
+            eocdView.setUint16(6, 0, true);
+            eocdView.setUint16(8, entries.length, true);
+            eocdView.setUint16(10, entries.length, true);
+            eocdView.setUint32(12, centralDirectory.length, true);
+            eocdView.setUint32(16, localFiles.length, true);
+            eocdView.setUint16(20, 0, true);
+
+            return new Blob([localFiles, centralDirectory, eocd], {
+                type: 'application/zip',
+            });
+        }
+
+        function batchZipFileName() {
+            const now = new Date();
+            const pad = (v) => String(v).padStart(2, '0');
+            const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+            return `image_converter_batch_${stamp}.zip`;
+        }
+
+        function sanitizeNumberInput(input, min, max, fallback) {
+            let value = Number.parseFloat(input.value);
+            if (!Number.isFinite(value)) {
+                value = fallback;
+            }
+            value = clamp(value, min, max);
+            input.value = `${Math.round(value)}`;
+            return value;
+        }
+
+        function clearPreviewCanvases() {
+            elements.sourceCanvas.width = 0;
+            elements.sourceCanvas.height = 0;
+            elements.resultCanvas.width = 0;
+            elements.resultCanvas.height = 0;
+            elements.sourceSize.textContent = '-';
+            elements.resultSize.textContent = '-';
+        }
+
+        function clearAccurateSizeTimer() {
+            if (state.accurateSizeTimer) {
+                clearTimeout(state.accurateSizeTimer);
+                state.accurateSizeTimer = null;
+            }
+        }
+
+        function rebuildImageList() {
+            const currentId = getCurrentImage()?.id || null;
+            elements.imageList.innerHTML = '';
+
+            if (!state.images.length) {
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = '画像がありません';
+                elements.imageList.appendChild(option);
+                elements.imageList.disabled = true;
+            } else {
+                elements.imageList.disabled = false;
+                state.images.forEach((item, index) => {
+                    const option = document.createElement('option');
+                    option.value = `${item.id}`;
+                    option.textContent = `${index + 1}. ${item.label}`;
+                    elements.imageList.appendChild(option);
+                });
+                if (currentId !== null) {
+                    elements.imageList.value = `${currentId}`;
+                }
+            }
+
+            elements.imageCount.textContent = `${state.images.length}枚読み込み済み`;
+        }
+
+        function updateImageMeta() {
+            const current = getCurrentImage();
+            const bitmap = current?.bitmap || null;
+            if (!current || !bitmap) {
+                elements.imageMeta.textContent = '画像は読み込まれていません';
+                elements.resizeHint.textContent = '現在の入力サイズ: 未読み込み';
+                return;
+            }
+            elements.imageMeta.textContent = `[${state.currentIndex + 1}/${state.images.length}] ${current.label} | ${bitmap.width} × ${bitmap.height}`;
+            elements.resizeHint.textContent = `現在の入力サイズ: ${bitmap.width} × ${bitmap.height}px`;
+        }
+
+        function applySourceSizeDefaults(bitmap) {
+            if (!bitmap) return;
+
+            const w = bitmap.width;
+            const h = bitmap.height;
+
+            elements.widthPx.value = `${Math.max(1, Math.round(w))}`;
+            elements.heightPx.value = `${Math.max(1, Math.round(h))}`;
+            elements.widthPercent.value = '100';
+            elements.heightPercent.value = '100';
+            state.resizeAnchor = 'width';
+        }
+
+        function setCurrentImage(index, options = {}) {
+            if (!state.images.length) {
+                state.currentIndex = -1;
+                rebuildImageList();
+                updateImageMeta();
+                clearPreviewCanvases();
+                clearAccurateSizeTimer();
+                return;
+            }
+
+            const safeIndex = clamp(index, 0, state.images.length - 1);
+            state.currentIndex = safeIndex;
+
+            const current = getCurrentImage();
+            if (options.applyDefaults && current?.bitmap) {
+                applySourceSizeDefaults(current.bitmap);
+            }
+
+            rebuildImageList();
+            updateImageMeta();
+            if (!options.silent) {
+                schedulePreviewRender({ mode: options.mode || 'fast' });
+            }
+        }
+
+        function addSourceBitmap(bitmap, label, preferredStem, options = {}) {
+            const item = {
+                id: state.nextImageId++,
+                bitmap,
+                label: label || `画像 ${state.nextImageId - 1}`,
+                fileStem: normalizeFileStem(preferredStem || pickFileNameLikeText(label) || 'image'),
+            };
+
+            state.images.push(item);
+
+            const selectNew = options.select !== false || state.currentIndex < 0;
+            if (selectNew) {
+                const applyDefaults = options.applyDefaults === true || state.images.length === 1;
+                setCurrentImage(state.images.length - 1, { applyDefaults, silent: true });
+            } else {
+                rebuildImageList();
+                updateImageMeta();
+            }
+
+            if (selectNew && !options.silent) {
+                const preferredMode = options.mode || (state.images.length === 1 ? 'full' : 'fast');
+                schedulePreviewRender({ mode: preferredMode });
+            }
+
+            return item;
+        }
+
+        function loadImageFromBlob(blob, label, preferredStem, options = {}) {
+            if (!(blob instanceof Blob)) {
+                return Promise.reject(new Error('invalid blob'));
+            }
+
+            return createImageBitmap(blob).then((bitmap) => {
+                return addSourceBitmap(bitmap, label || '受信画像', preferredStem, options);
+            });
+        }
+
+        async function loadImagesFromFiles(fileList) {
+            const files = Array.from(fileList || []);
+            if (!files.length) return;
+
+            const hadImages = state.images.length > 0;
+            setStatus(`${files.length}枚の画像を読み込み中...`, true);
+
+            let added = 0;
+            for (const file of files) {
+                try {
+                    const bitmap = await createImageBitmap(file);
+                    addSourceBitmap(bitmap, file.name || 'アップロード画像', file.name || 'image', {
+                        select: false,
+                        silent: true,
+                    });
+                    added += 1;
+                } catch (error) {
+                    console.error(error);
+                }
+            }
+
+            if (added <= 0) {
+                setStatus('画像の読み込みに失敗しました。', false);
+                return;
+            }
+
+            setCurrentImage(state.images.length - 1, {
+                applyDefaults: !hadImages,
+                mode: hadImages ? 'fast' : 'full',
+            });
+            setStatus(`${added}枚の画像を読み込みました。`, true);
+        }
+
+        function removeCurrentImage() {
+            const current = getCurrentImage();
+            if (!current) {
+                setStatus('削除する画像がありません。', false);
+                return;
+            }
+
+            const removedLabel = current.label;
+            closeImageBitmap(current.bitmap);
+            state.images.splice(state.currentIndex, 1);
+
+            if (!state.images.length) {
+                state.currentIndex = -1;
+                state.previewToken += 1;
+                rebuildImageList();
+                updateImageMeta();
+                clearPreviewCanvases();
+                setStatus('画像をすべて削除しました。', true);
+                return;
+            }
+
+            const nextIndex = Math.min(state.currentIndex, state.images.length - 1);
+            setCurrentImage(nextIndex);
+            setStatus(`画像を削除しました: ${removedLabel}`, true);
+        }
+
+        function clearAllImages() {
+            state.images.forEach((item) => closeImageBitmap(item.bitmap));
+            state.images = [];
+            state.currentIndex = -1;
+            state.previewToken += 1;
+            state.estimateToken += 1;
+            clearAccurateSizeTimer();
+
+            rebuildImageList();
+            updateImageMeta();
+            clearPreviewCanvases();
+            setStatus('全画像を削除しました。', true);
+        }
+
+        function resetImage() {
+            removeCurrentImage();
+        }
+
+        function getOutputConfig() {
+            const format = elements.outputFormat.value;
+            if (format === 'jpeg') {
+                return {
+                    format,
+                    ext: 'jpg',
+                    mimeType: 'image/jpeg',
+                    quality: clamp(Number.parseInt(elements.quality.value, 10) / 100, 0.1, 1),
+                };
+            }
+            if (format === 'webp') {
+                return {
+                    format,
+                    ext: 'webp',
+                    mimeType: 'image/webp',
+                    quality: clamp(Number.parseInt(elements.quality.value, 10) / 100, 0.1, 1),
+                };
+            }
+            return {
+                format: 'png',
+                ext: 'png',
+                mimeType: 'image/png',
+                quality: undefined,
+            };
+        }
+
+        function getResizeSettings() {
+            const mode = elements.resizeMode.value;
+            const keepAspect = elements.keepAspect.checked;
+            const bitmap = getCurrentBitmap();
+
+            const widthPercent = sanitizeNumberInput(elements.widthPercent, 1, 1000, 100);
+            const heightPercent = sanitizeNumberInput(elements.heightPercent, 1, 1000, 100);
+            const widthPx = sanitizeNumberInput(elements.widthPx, 1, 20000, bitmap?.width || 1);
+            const heightPx = sanitizeNumberInput(elements.heightPx, 1, 20000, bitmap?.height || 1);
+
+            return {
+                mode,
+                keepAspect,
+                widthPercent,
+                heightPercent,
+                widthPx,
+                heightPx,
+                anchor: state.resizeAnchor,
+            };
+        }
+
+        function computeTargetSize(sourceWidth, sourceHeight, settings) {
+            const srcW = Math.max(1, Math.round(sourceWidth));
+            const srcH = Math.max(1, Math.round(sourceHeight));
+
+            if (settings.mode === 'original') {
+                return { width: srcW, height: srcH };
+            }
+
+            if (settings.mode === 'percent') {
+                const scaleX = clamp(settings.widthPercent / 100, 0.01, 10);
+                const scaleY = settings.keepAspect ? scaleX : clamp(settings.heightPercent / 100, 0.01, 10);
+                const width = Math.max(1, Math.round(srcW * scaleX));
+                const height = Math.max(1, Math.round(srcH * scaleY));
+                return { width, height };
+            }
+
+            let width = Math.max(1, Math.round(settings.widthPx));
+            let height = Math.max(1, Math.round(settings.heightPx));
+
+            if (settings.keepAspect) {
+                const aspect = srcW / srcH;
+                if (settings.anchor === 'height') {
+                    height = Math.max(1, height);
+                    width = Math.max(1, Math.round(height * aspect));
+                } else {
+                    width = Math.max(1, width);
+                    height = Math.max(1, Math.round(width / (aspect || 1)));
+                }
+            }
+
+            return { width, height };
+        }
+
+        function buildResizedCanvas(item, maxEdge = null, options = {}) {
+            const bitmap = item?.bitmap;
+            if (!bitmap) return null;
+
+            const settings = getResizeSettings();
+            const target = computeTargetSize(bitmap.width, bitmap.height, settings);
+
+            let drawWidth = target.width;
+            let drawHeight = target.height;
+            if (Number.isFinite(maxEdge) && maxEdge > 0) {
+                const edge = Math.max(drawWidth, drawHeight);
+                if (edge > maxEdge) {
+                    const ratio = maxEdge / edge;
+                    drawWidth = Math.max(1, Math.round(drawWidth * ratio));
+                    drawHeight = Math.max(1, Math.round(drawHeight * ratio));
+                }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = drawWidth;
+            canvas.height = drawHeight;
+            const ctx = canvas.getContext('2d');
+            const resizeQuality = elements.resizeQuality?.value || 'high';
+            const smoothing = options.smoothing || 'auto';
+            if (smoothing === 'off') {
+                ctx.imageSmoothingEnabled = false;
+                ctx.imageSmoothingQuality = 'low';
+            } else {
+                ctx.imageSmoothingEnabled = resizeQuality !== 'off';
+                ctx.imageSmoothingQuality = resizeQuality === 'off' ? 'low' : resizeQuality;
+            }
+            ctx.drawImage(bitmap, 0, 0, drawWidth, drawHeight);
+            if (options.applyColorDepth !== false) {
+                applyColorDepth(canvas);
+            }
+
+            return {
+                canvas,
+                targetWidth: target.width,
+                targetHeight: target.height,
+                drawWidth,
+                drawHeight,
+            };
+        }
+
+        function drawSourcePreview(item) {
+            const bitmap = item?.bitmap;
+            if (!bitmap) {
+                elements.sourceCanvas.width = 0;
+                elements.sourceCanvas.height = 0;
+                elements.sourceSize.textContent = '-';
+                return;
+            }
+
+            const srcW = bitmap.width;
+            const srcH = bitmap.height;
+            const edge = Math.max(srcW, srcH);
+            const ratio = edge > PREVIEW_MAX_EDGE ? PREVIEW_MAX_EDGE / edge : 1;
+            const drawWidth = Math.max(1, Math.round(srcW * ratio));
+            const drawHeight = Math.max(1, Math.round(srcH * ratio));
+
+            elements.sourceCanvas.width = drawWidth;
+            elements.sourceCanvas.height = drawHeight;
+            sourceCtx.clearRect(0, 0, drawWidth, drawHeight);
+            sourceCtx.drawImage(bitmap, 0, 0, drawWidth, drawHeight);
+            elements.sourceSize.textContent = `入力: ${srcW} × ${srcH}px`;
+        }
+
+        function estimateBytesFromPreview(previewResult, blob) {
+            if (!previewResult || !blob) return null;
+            const targetPixels = previewResult.targetWidth * previewResult.targetHeight;
+            const previewPixels = previewResult.drawWidth * previewResult.drawHeight;
+            const pixelRatio = previewPixels > 0 ? targetPixels / previewPixels : 1;
+            return pixelRatio > 1.02
+                ? Math.round(blob.size * pixelRatio)
+                : blob.size;
+        }
+
+        function setResultSizeText(targetWidth, targetHeight, bytes, format, mode) {
+            if (!Number.isFinite(bytes)) {
+                elements.resultSize.textContent = '-';
+                return;
+            }
+            const suffix = format === 'png' ? '目安サイズ' : '圧縮目安サイズ';
+            const label = mode === 'actual' ? '実測' : '概算';
+            elements.resultSize.textContent = `出力: ${targetWidth} × ${targetHeight}px | ${suffix}: ${formatBytes(bytes)} (${label})`;
+        }
+
+        function setPendingSizeText(targetWidth, targetHeight, format) {
+            if (!Number.isFinite(targetWidth) || !Number.isFinite(targetHeight)) {
+                elements.resultSize.textContent = '-';
+                return;
+            }
+            const suffix = format === 'png' ? '目安サイズ' : '圧縮目安サイズ';
+            elements.resultSize.textContent = `出力: ${targetWidth} × ${targetHeight}px | ${suffix}: 計算中`;
+        }
+
+        function applyColorDepth(canvas) {
+            const bits = clampInt(elements.colorDepth.value, 1, 8);
+            if (bits >= 8) return;
+
+            const levels = Math.pow(2, bits) - 1;
+            const step = levels > 0 ? 255 / levels : 255;
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+
+            for (let i = 0; i < data.length; i += 4) {
+                data[i] = Math.round(data[i] / step) * step;
+                data[i + 1] = Math.round(data[i + 1] / step) * step;
+                data[i + 2] = Math.round(data[i + 2] / step) * step;
+            }
+
+            ctx.putImageData(imageData, 0, 0);
+        }
+
+        function applyColorDepthToData(imageData) {
+            const bits = clampInt(elements.colorDepth.value, 1, 8);
+            if (bits >= 8) return;
+            const levels = Math.pow(2, bits) - 1;
+            const step = levels > 0 ? 255 / levels : 255;
+            const data = imageData.data;
+
+            for (let i = 0; i < data.length; i += 4) {
+                data[i] = Math.round(data[i] / step) * step;
+                data[i + 1] = Math.round(data[i + 1] / step) * step;
+                data[i + 2] = Math.round(data[i + 2] / step) * step;
+            }
+        }
+
+        function scheduleAccurateSizeEstimate(item) {
+            if (!item || state.isBatchProcessing) return;
+            clearAccurateSizeTimer();
+            const token = ++state.accurateSizeToken;
+
+            state.accurateSizeTimer = setTimeout(async () => {
+                if (token !== state.accurateSizeToken) return;
+                if (state.isBatchProcessing) return;
+
+                try {
+                    const output = await buildOutputBlob(item);
+                    if (!output) return;
+                    if (token !== state.accurateSizeToken) return;
+
+                    setResultSizeText(output.width, output.height, output.blob.size, output.format, 'actual');
+                } catch (error) {
+                    console.error(error);
+                }
+            }, 1200);
+        }
+
+        async function renderPreview(options = {}) {
+            const current = getCurrentImage();
+            if (!current) {
+                setStatus('画像を読み込んで設定してください。', true);
+                return;
+            }
+
+            const token = ++state.previewToken;
+            const mode = options.mode || 'fast';
+            const maxEdge = mode === 'full' ? PREVIEW_MAX_EDGE : getFastPreviewMaxEdge();
+            const smoothing = 'auto';
+
+            try {
+                drawSourcePreview(current);
+
+                const previewResult = buildResizedCanvas(current, maxEdge, { smoothing });
+                if (!previewResult) {
+                    setStatus('プレビュー生成に失敗しました。', false);
+                    return;
+                }
+
+                if (mode !== 'full') {
+                    elements.resultCanvas.width = previewResult.drawWidth;
+                    elements.resultCanvas.height = previewResult.drawHeight;
+                    resultCtx.clearRect(0, 0, previewResult.drawWidth, previewResult.drawHeight);
+                    resultCtx.drawImage(previewResult.canvas, 0, 0, previewResult.drawWidth, previewResult.drawHeight);
+
+                    const output = getOutputConfig();
+                    setPendingSizeText(previewResult.targetWidth, previewResult.targetHeight, output.format);
+                    scheduleAccurateSizeEstimate(current);
+
+                    setStatus(`プレビュー更新(高速): ${previewResult.targetWidth} × ${previewResult.targetHeight}px`, true);
+                    return;
+                }
+
+                const output = getOutputConfig();
+                const blob = await canvasToBlob(previewResult.canvas, output.mimeType, output.quality);
+                if (token !== state.previewToken) {
+                    return;
+                }
+                if (!blob) {
+                    setStatus('プレビュー生成に失敗しました。', false);
+                    return;
+                }
+
+                let drawSource = previewResult.canvas;
+                let decodedBitmap = null;
+                if (output.format !== 'png') {
+                    try {
+                        decodedBitmap = await createImageBitmap(blob);
+                        if (token !== state.previewToken) {
+                            closeImageBitmap(decodedBitmap);
+                            return;
+                        }
+                        drawSource = decodedBitmap;
+                    } catch (error) {
+                        console.error(error);
+                    }
+                }
+
+                elements.resultCanvas.width = previewResult.drawWidth;
+                elements.resultCanvas.height = previewResult.drawHeight;
+                resultCtx.clearRect(0, 0, previewResult.drawWidth, previewResult.drawHeight);
+                resultCtx.drawImage(drawSource, 0, 0, previewResult.drawWidth, previewResult.drawHeight);
+                closeImageBitmap(decodedBitmap);
+
+                state.estimateToken += 1;
+                const estimatedBytes = estimateBytesFromPreview(previewResult, blob);
+                if (estimatedBytes !== null) {
+                    setResultSizeText(previewResult.targetWidth, previewResult.targetHeight, estimatedBytes, output.format, 'estimate');
+                }
+                scheduleAccurateSizeEstimate(current);
+
+                setStatus(`プレビュー更新: ${previewResult.targetWidth} × ${previewResult.targetHeight}px`, true);
+            } catch (error) {
+                console.error(error);
+                setStatus('プレビュー更新中にエラーが発生しました。', false);
+            }
+        }
+
+        function schedulePreviewRender(options = {}) {
+            if (!getCurrentImage()) return;
+            const mode = options.mode || 'fast';
+            const delay = options.delay ?? (mode === 'full' ? 0 : PREVIEW_DEBOUNCE_MS);
+            if (state.pendingRender !== null) {
+                clearTimeout(state.pendingRender);
+            }
+            clearAccurateSizeTimer();
+            state.pendingRender = setTimeout(() => {
+                state.pendingRender = null;
+                const run = () => {
+                    renderPreview({ mode }).catch((error) => {
+                        console.error(error);
+                        setStatus('プレビュー更新中にエラーが発生しました。', false);
+                    });
+                };
+                if (window.requestIdleCallback) {
+                    window.requestIdleCallback(run, { timeout: 300 });
+                } else {
+                    run();
+                }
+            }, delay);
+        }
+
+        async function buildOutputBlob(item = getCurrentImage()) {
+            const bitmap = item?.bitmap;
+            if (!bitmap) return null;
+
+            const settings = getResizeSettings();
+            const target = computeTargetSize(bitmap.width, bitmap.height, settings);
+            const imageData = await buildOutputImageData(item, target.width, target.height);
+            if (!imageData) return null;
+
+            if (elements.colorDepth.value !== '8') {
+                applyColorDepthToData(imageData);
+            }
+
+            const output = getOutputConfig();
+            const { encodeJpeg, encodeWebp, encodePng } = await loadWasmTools();
+            const quality = getEncoderQuality();
+
+            let buffer;
+            if (output.format === 'jpeg') {
+                buffer = await encodeJpeg(imageData, { quality });
+            } else if (output.format === 'webp') {
+                buffer = await encodeWebp(imageData, { quality });
+            } else {
+                buffer = await encodePng(imageData);
+            }
+
+            const blob = new Blob([buffer], { type: output.mimeType });
+
+            return {
+                blob,
+                width: target.width,
+                height: target.height,
+                ext: output.ext,
+                format: output.format,
+                sourceItem: item,
+            };
+        }
+
+        async function downloadResult() {
+            const current = getCurrentImage();
+            if (!current) {
+                setStatus('先に画像を読み込んでください。', false);
+                return;
+            }
+
+            if (state.isBatchProcessing) {
+                setStatus('一括処理中です。完了まで待ってください。', false);
+                return;
+            }
+
+            setStatus('出力画像を生成中...', true);
+
+            try {
+                const output = await buildOutputBlob(current);
+                if (!output) {
+                    setStatus('出力データの生成に失敗しました。', false);
+                    return;
+                }
+
+                const link = document.createElement('a');
+                link.download = buildOutputFileName(output.ext, output.sourceItem);
+                link.href = URL.createObjectURL(output.blob);
+                link.click();
+                URL.revokeObjectURL(link.href);
+
+                setStatus(`出力を保存しました (${output.width} × ${output.height}px, ${output.format.toUpperCase()})`, true);
+            } catch (error) {
+                console.error(error);
+                setStatus('出力生成中にエラーが発生しました。', false);
+            }
+        }
+
+        async function downloadAllResults() {
+            if (!state.images.length) {
+                setStatus('先に画像を読み込んでください。', false);
+                return;
+            }
+
+            if (state.isBatchProcessing) {
+                setStatus('一括処理中です。完了まで待ってください。', false);
+                return;
+            }
+
+            state.isBatchProcessing = true;
+            setActionButtonsEnabled(false);
+
+            try {
+                const entries = [];
+                const usedNames = new Map();
+
+                const uniqueName = (name) => {
+                    const count = usedNames.get(name) || 0;
+                    usedNames.set(name, count + 1);
+                    if (count === 0) return name;
+
+                    const dotIndex = name.lastIndexOf('.');
+                    if (dotIndex <= 0) {
+                        return `${name}_${count + 1}`;
+                    }
+                    const base = name.slice(0, dotIndex);
+                    const ext = name.slice(dotIndex);
+                    return `${base}_${count + 1}${ext}`;
+                };
+
+                for (let i = 0; i < state.images.length; i += 1) {
+                    const item = state.images[i];
+                    setStatus(`一括変換中... ${i + 1}/${state.images.length}`, true);
+
+                    const output = await buildOutputBlob(item);
+                    if (!output) {
+                        continue;
+                    }
+
+                    entries.push({
+                        name: uniqueName(buildOutputFileName(output.ext, item)),
+                        blob: output.blob,
+                    });
+                }
+
+                if (!entries.length) {
+                    setStatus('一括出力データの生成に失敗しました。', false);
+                    return;
+                }
+
+                setStatus('ZIPを作成中...', true);
+                const zipBlob = await buildZipBlob(entries);
+                const link = document.createElement('a');
+                link.download = batchZipFileName();
+                link.href = URL.createObjectURL(zipBlob);
+                link.click();
+                URL.revokeObjectURL(link.href);
+
+                setStatus(`${entries.length}枚を一括ダウンロードしました。`, true);
+            } catch (error) {
+                console.error(error);
+                setStatus('一括ダウンロード中にエラーが発生しました。', false);
+            } finally {
+                state.isBatchProcessing = false;
+                setActionButtonsEnabled(true);
+            }
+        }
+
+        async function writeBack() {
+            const current = getCurrentImage();
+            if (!current) {
+                setStatus('先に画像を読み込んでください。', false);
+                return;
+            }
+
+            if (state.isBatchProcessing) {
+                setStatus('一括処理中です。完了まで待ってください。', false);
+                return;
+            }
+
+            setStatus('結果を書き戻しています...', true);
+
+            try {
+                const output = await buildOutputBlob(current);
+                if (!output) {
+                    setStatus('書き戻しデータの生成に失敗しました。', false);
+                    return;
+                }
+
+                const bitmap = await createImageBitmap(output.blob);
+                closeImageBitmap(current.bitmap);
+                current.bitmap = bitmap;
+                current.label = `書き戻し: ${current.label}`;
+                current.fileStem = normalizeFileStem(`${current.fileStem}_writeback`);
+
+                rebuildImageList();
+                updateImageMeta();
+                schedulePreviewRender();
+                setStatus('結果を現在画像に書き戻しました。', true);
+            } catch (error) {
+                console.error(error);
+                setStatus('書き戻しに失敗しました。', false);
+            }
+        }
+
+        function updateResizeModeVisibility() {
+            const mode = elements.resizeMode.value;
+            elements.percentControls.hidden = mode !== 'percent';
+            elements.pixelControls.hidden = mode !== 'pixel';
+        }
+
+        function syncAspectForPercent(fromKey) {
+            if (!elements.keepAspect.checked) return;
+
+            if (fromKey === 'width') {
+                elements.heightPercent.value = elements.widthPercent.value;
+            } else {
+                elements.widthPercent.value = elements.heightPercent.value;
+            }
+        }
+
+        function syncAspectForPixel(fromKey) {
+            const bitmap = getCurrentBitmap();
+            if (!elements.keepAspect.checked || !bitmap) return;
+
+            const srcW = bitmap.width;
+            const srcH = bitmap.height;
+            if (srcW <= 0 || srcH <= 0) return;
+
+            if (fromKey === 'width') {
+                state.resizeAnchor = 'width';
+                const width = sanitizeNumberInput(elements.widthPx, 1, 20000, srcW);
+                const height = Math.max(1, Math.round((width * srcH) / srcW));
+                elements.heightPx.value = `${height}`;
+            } else {
+                state.resizeAnchor = 'height';
+                const height = sanitizeNumberInput(elements.heightPx, 1, 20000, srcH);
+                const width = Math.max(1, Math.round((height * srcW) / srcH));
+                elements.widthPx.value = `${width}`;
+            }
+        }
+
+        function handleResizeModeChange(previousMode, nextMode) {
+            const bitmap = getCurrentBitmap();
+            if (!bitmap || previousMode === nextMode) {
+                updateResizeModeVisibility();
+                return;
+            }
+
+            const prevSettings = getResizeSettings();
+            prevSettings.mode = previousMode;
+            const target = computeTargetSize(bitmap.width, bitmap.height, prevSettings);
+
+            if (nextMode === 'pixel') {
+                elements.widthPx.value = `${target.width}`;
+                elements.heightPx.value = `${target.height}`;
+                state.resizeAnchor = 'width';
+            } else if (nextMode === 'percent') {
+                const widthPercent = clamp((target.width / bitmap.width) * 100, 1, 1000);
+                const heightPercent = clamp((target.height / bitmap.height) * 100, 1, 1000);
+                elements.widthPercent.value = `${Math.round(widthPercent)}`;
+                elements.heightPercent.value = `${Math.round(heightPercent)}`;
+                if (elements.keepAspect.checked) {
+                    elements.heightPercent.value = elements.widthPercent.value;
+                }
+            }
+
+            updateResizeModeVisibility();
+        }
+
+        function updateOutputControls() {
+            const format = elements.outputFormat.value;
+            elements.qualityRow.style.display = format === 'png' ? 'none' : '';
+        }
+
+        function updateQualityLabel() {
+            setQuality(elements.quality.value, false);
+            setColorDepth(elements.colorDepth.value, false);
+        }
+
+        function setupExternalImageReceiver() {
+            window.addEventListener('message', async (event) => {
+                const payload = event.data;
+                if (!payload || payload.type !== 'image-converter-import') return;
+
+                const blob = payload.blob;
+                if (!(blob instanceof Blob)) return;
+
+                const mimeType = String(payload.mimeType || blob.type || '').toLowerCase();
+                if (!mimeType.startsWith('image/')) {
+                    return;
+                }
+
+                const fileName = typeof payload.fileName === 'string' && payload.fileName
+                    ? payload.fileName
+                    : 'imported-image.png';
+
+                const replyOrigin = event.origin && event.origin !== 'null' ? event.origin : '*';
+
+                try {
+                    await loadImageFromBlob(blob, fileName, fileName, {
+                        select: true,
+                    });
+
+                    if (event.source && typeof event.source.postMessage === 'function') {
+                        event.source.postMessage({
+                            type: 'image-converter-import-ack',
+                            id: payload.id || null,
+                            ok: true,
+                        }, replyOrigin);
+                    }
+
+                    const current = getCurrentBitmap();
+                    if (current) {
+                        setStatus(`外部ツールから画像を受信しました (${current.width} × ${current.height})`, true);
+                    } else {
+                        setStatus('外部ツールから画像を受信しました。', true);
+                    }
+                } catch (error) {
+                    console.error(error);
+
+                    if (event.source && typeof event.source.postMessage === 'function') {
+                        event.source.postMessage({
+                            type: 'image-converter-import-ack',
+                            id: payload.id || null,
+                            ok: false,
+                            error: 'import-failed',
+                        }, replyOrigin);
+                    }
+
+                    setStatus('外部ツールからの画像受信に失敗しました。', false);
+                }
+            });
+
+            if (window.opener && typeof window.opener.postMessage === 'function') {
+                try {
+                    window.opener.postMessage({ type: 'image-converter-receiver-ready' }, SITE_TARGET_ORIGIN);
+                } catch (error) {
+                    console.error(error);
+                    try {
+                        window.opener.postMessage({ type: 'image-converter-receiver-ready' }, '*');
+                    } catch (_) {
+                    }
+                }
+            }
+        }
+
+        function attachEvents() {
+            let previousResizeMode = elements.resizeMode.value;
+
+            elements.fileInput.addEventListener('change', async (event) => {
+                const files = event.target.files;
+                if (files && files.length > 0) {
+                    await loadImagesFromFiles(files);
+                }
+                elements.fileInput.value = '';
+            });
+
+            elements.resetLink.addEventListener('click', (event) => {
+                event.preventDefault();
+                resetImage();
+            });
+
+            elements.clearImagesLink.addEventListener('click', (event) => {
+                event.preventDefault();
+                clearAllImages();
+            });
+
+            elements.imageList.addEventListener('change', () => {
+                const selectedId = Number.parseInt(elements.imageList.value, 10);
+                if (!Number.isFinite(selectedId)) return;
+                const index = state.images.findIndex((item) => item.id === selectedId);
+                if (index >= 0) {
+                    setCurrentImage(index);
+                }
+            });
+
+            elements.resizeMode.addEventListener('change', () => {
+                const nextMode = elements.resizeMode.value;
+                handleResizeModeChange(previousResizeMode, nextMode);
+                previousResizeMode = nextMode;
+                schedulePreviewRender({ mode: 'fast' });
+            });
+
+            elements.keepAspect.addEventListener('change', () => {
+                if (elements.resizeMode.value === 'percent') {
+                    syncAspectForPercent('width');
+                } else if (elements.resizeMode.value === 'pixel') {
+                    syncAspectForPixel(state.resizeAnchor === 'height' ? 'height' : 'width');
+                }
+                schedulePreviewRender({ mode: 'fast' });
+            });
+
+            elements.resizeQuality.addEventListener('change', () => {
+                schedulePreviewRender({ mode: 'fast' });
+            });
+
+            elements.widthPercent.addEventListener('input', () => {
+                sanitizeNumberInput(elements.widthPercent, 1, 1000, 100);
+                syncAspectForPercent('width');
+                schedulePreviewRender({ mode: 'fast' });
+            });
+
+            elements.heightPercent.addEventListener('input', () => {
+                sanitizeNumberInput(elements.heightPercent, 1, 1000, 100);
+                syncAspectForPercent('height');
+                schedulePreviewRender({ mode: 'fast' });
+            });
+
+            elements.widthPx.addEventListener('input', () => {
+                sanitizeNumberInput(elements.widthPx, 1, 20000, getCurrentBitmap()?.width || 1);
+                syncAspectForPixel('width');
+                schedulePreviewRender({ mode: 'fast' });
+            });
+
+            elements.heightPx.addEventListener('input', () => {
+                sanitizeNumberInput(elements.heightPx, 1, 20000, getCurrentBitmap()?.height || 1);
+                syncAspectForPixel('height');
+                schedulePreviewRender({ mode: 'fast' });
+            });
+
+            elements.outputFormat.addEventListener('change', () => {
+                updateOutputControls();
+                schedulePreviewRender({ mode: 'fast' });
+            });
+
+            elements.quality.addEventListener('input', () => {
+                setQuality(elements.quality.value, true);
+            });
+
+            elements.qualityNumber.addEventListener('input', () => {
+                setQuality(elements.qualityNumber.value, true);
+            });
+
+            elements.colorDepth.addEventListener('input', () => {
+                setColorDepth(elements.colorDepth.value, true);
+            });
+
+            elements.colorDepthNumber.addEventListener('input', () => {
+                setColorDepth(elements.colorDepthNumber.value, true);
+            });
+
+            elements.refreshPreview.addEventListener('click', (event) => {
+                event.preventDefault();
+                schedulePreviewRender({ mode: 'full' });
+            });
+
+            elements.downloadResult.addEventListener('click', (event) => {
+                event.preventDefault();
+                downloadResult();
+            });
+
+            elements.downloadAllResults.addEventListener('click', (event) => {
+                event.preventDefault();
+                downloadAllResults();
+            });
+
+            elements.writeBack.addEventListener('click', (event) => {
+                event.preventDefault();
+                writeBack();
+            });
+        }
+
+        function init() {
+            setupExternalImageReceiver();
+            rebuildImageList();
+            updateImageMeta();
+            clearPreviewCanvases();
+            updateResizeModeVisibility();
+            updateOutputControls();
+            updateQualityLabel();
+            setActionButtonsEnabled(true);
+            attachEvents();
+        }
+
+        init();
+    })();
+</script>
