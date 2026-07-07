@@ -103,6 +103,17 @@ $$
 \int_0^\infty e^{-x} dx = 1
 $$
 
+$$
+\typst{ 
+  "typst math extension \typst{...}"
+}
+$$
+
+$$
+\typst{ 
+v_"rms" = sqrt(1 / (|D|) integral_D v(t)^2 dif t)
+}
+$$
 
 
 ## Footnote test
